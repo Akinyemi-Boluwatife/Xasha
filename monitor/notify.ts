@@ -23,7 +23,7 @@ export async function notify(
   else throw new Error("Invalid alert configuration.");
   const response = await request(url.href, {
     method: "POST",
-    redirect: "error",
+    redirect: "manual",
     signal: AbortSignal.timeout(10000),
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

@@ -1,6 +1,8 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import { stripTypeScriptTypes } from 'node:module'
+import { Miniflare, convertV4MiniflareOptions } from 'miniflare'
 import { runCheck } from '../monitor/check.ts'
 import { setup } from './runtime.mjs'
 
@@ -142,11 +144,54 @@ test('webhook credentials never follow redirects and invalid transport is reject
       requests.push(init)
       return m.request(url, init)
     })
-    assert.equal(requests.every(request => request.redirect === 'error'), true)
+    assert.equal(requests.every(request => request.redirect === 'manual'), true)
     assert.deepEqual(m.alerts[0].allowed_mentions, { parse: [] })
     m.setReady(true)
     m.env.ALERT_WEBHOOK_URL = 'http://alerts.invalid/private-token'
     await assert.rejects(m.check(), { message: 'Monitoring execution failed.' })
     assert.equal(m.alerts.length, 1)
   } finally { await m.runtime.dispose() }
+})
+
+test('readiness and webhook requests work in Workers and reject redirects without following them', async () => {
+  let status = 200
+  const requests = []
+  const runtime = new Miniflare(convertV4MiniflareOptions({
+    modules: [
+      { type: 'ESModule', path: 'entry.js', contents: `
+        import { probe } from './probe.js';
+        import { notify } from './notify.js';
+        export default { async fetch(request) {
+          if (new URL(request.url).pathname === '/probe')
+            return Response.json(await probe('https://ready.invalid/ready', fetch));
+          try {
+            await notify({ ALERT_WEBHOOK_URL: 'https://alerts.invalid/token', WEBHOOK_FORMAT: 'json' }, 'outage', 1700000000000, fetch);
+            return new Response(null, { status: 204 });
+          } catch { return new Response(null, { status: 502 }); }
+        }};
+      ` },
+      ...await Promise.all(['probe', 'notify'].map(async name => ({
+        type: 'ESModule', path: `${name}.js`,
+        contents: stripTypeScriptTypes(await readFile(`monitor/${name}.ts`, 'utf8')),
+      }))),
+    ],
+    compatibilityDate: '2026-10-01',
+    compatibilityFlags: ['global_fetch_strictly_public'],
+    outboundService: async request => {
+      requests.push({ url: request.url, method: request.method })
+      if (status === 302) return new Response(null, { status, headers: { Location: 'https://redirect.invalid/' } })
+      return request.method === 'GET'
+        ? Response.json({ service: 'xasha', status: 'ready' })
+        : new Response(null, { status: 204 })
+    },
+  }))
+  try {
+    assert.deepEqual(await (await runtime.dispatchFetch('https://test.invalid/probe')).json(), { ready: true, status: 200 })
+    assert.equal((await runtime.dispatchFetch('https://test.invalid/notify')).status, 204)
+    status = 302
+    assert.deepEqual(await (await runtime.dispatchFetch('https://test.invalid/probe')).json(), { ready: false, status: 302 })
+    assert.equal((await runtime.dispatchFetch('https://test.invalid/notify')).status, 502)
+    assert.equal(requests.length, 4)
+    assert.equal(requests.some(request => request.url.includes('redirect.invalid')), false)
+  } finally { await runtime.dispose() }
 })

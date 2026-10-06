@@ -6,7 +6,7 @@ export async function probe(
   try {
     response = await request(url, {
       method: "GET",
-      redirect: "error",
+      redirect: "manual",
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
     });

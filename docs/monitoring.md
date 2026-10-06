@@ -10,6 +10,8 @@ Readiness checks read schema and aggregate metadata only. They never create, ret
 
 The separate `xasha-monitor` Worker runs every five minutes and requests the production `/ready` URL with a ten-second timeout. Network failures, non-200 responses, malformed status JSON, unexpected service/status, and oversized status bodies count as failures. It follows no redirects.
 
+Readiness and webhook requests use `redirect: 'manual'` and reject redirect responses. This works in the Workers runtime and prevents forwarding webhook credentials to another destination, following [Cloudflare's request guidance](https://developers.cloudflare.com/workers/runtime-apis/request/). A runtime integration test verifies successful requests and rejected redirects for both paths.
+
 After three consecutive failed checks, it records production as unavailable. A successful readiness check clears the failure count. Detection normally takes roughly 10–15 minutes from the start of an outage, plus scheduling delays. Cron scheduling is not an exact timing guarantee.
 
 The monitor has no public workers.dev address, preview URL, or manual HTTP trigger. It is deployed using the `monitor` CLI mode from the same repository. It binds only the separate `xasha-monitor` D1 database, not the secret database.
