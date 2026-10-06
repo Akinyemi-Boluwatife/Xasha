@@ -49,6 +49,8 @@ This deploys the development Worker. The default build, deploy, and migration co
 
 ## Hosting
 
+`api.xasha.site` is the planned production custom hostname. Cloudflare activation is pending; the workers.dev URLs below remain the verified endpoints.
+
 Both environments use Cloudflare Workers and separate D1 databases, with no custom domain.
 
 | Environment | API URL | D1 database | Rate-limit namespace |
@@ -218,7 +220,6 @@ Environment selection follows [cf project modes](https://developers.cloudflare.c
 - Product requirements: [PRD.md](PRD.md)
 - Developer integration and self-hosting: [docs/developers.md](docs/developers.md)
 - OpenAPI specification: [docs/openapi.json](docs/openapi.json)
-- Public release review: [docs/public-release-review.md](docs/public-release-review.md)
 - Secret API contract: [docs/api-contract.md](docs/api-contract.md)
 - Recovery runbook: [docs/recovery.md](docs/recovery.md)
 - Monitoring guide: [docs/monitoring.md](docs/monitoring.md)

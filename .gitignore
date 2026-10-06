@@ -4,3 +4,5 @@ dist/
 .dev.vars
 .env
 .env.*
+docs/public-release-review.md
+docs/domain-setup.md
