@@ -7,6 +7,8 @@ type BrowserBindings = { ALLOWED_ORIGINS: string }
 function origins(value: string): string[] {
   try {
     const list: unknown = JSON.parse(value)
+    // A sole wildcard explicitly opts into public access without credentials.
+    if (Array.isArray(list) && list.length === 1 && list[0] === '*') return ['*']
     if (!Array.isArray(list) || list.length > 16 || list.some(origin => {
       if (typeof origin !== 'string') return true
       const url = new URL(origin)
@@ -21,8 +23,9 @@ function origins(value: string): string[] {
 export const browserPolicy = createMiddleware<{ Bindings: BrowserBindings }>(async (c, next) => {
   c.header('Vary', 'Origin')
   const allowed = origins(c.env.ALLOWED_ORIGINS)
+  const publicAccess = allowed.length === 1 && allowed[0] === '*'
   const origin = c.req.header('Origin')
-  if (origin && origin !== new URL(c.req.url).origin && !allowed.includes(origin)) {
+  if (!publicAccess && origin && origin !== new URL(c.req.url).origin && !allowed.includes(origin)) {
     return c.json({ error: { code: 'ORIGIN_NOT_ALLOWED', message: 'Browser origin is not allowed.' } }, 403)
   }
   if (origin && c.req.method === 'OPTIONS') {
@@ -33,7 +36,7 @@ export const browserPolicy = createMiddleware<{ Bindings: BrowserBindings }>(asy
     }
   }
   return cors({
-    origin: origin || '',
+    origin: publicAccess ? '*' : origin || '',
     allowMethods: ['POST', 'OPTIONS'],
     allowHeaders: ['Content-Type'],
     exposeHeaders: ['Retry-After'],

@@ -1,6 +1,6 @@
 # Xasha API contract
 
-Status: Secret endpoints, operational safeguards, browser-origin policy, and maintenance mode implemented. Envelope version 1 is independent of route naming; routes have no version prefix. The future frontend origin remains undecided.
+Status: Secret endpoints, operational safeguards, public browser access without credentials, and maintenance mode implemented. Envelope version 1 is independent of route naming; routes have no version prefix.
 
 For integration examples and self-hosting, see [the developer guide](developers.md). Machine-readable endpoint schemas are in [OpenAPI](openapi.json).
 
@@ -143,7 +143,7 @@ All errors use `{ "error": { "code": "...", "message": "..." } }` with fixed mes
 | Status | Code | Meaning |
 | --- | --- | --- |
 | `400` | `INVALID_REQUEST` | Invalid JSON, fields, envelope, expiry, or deletion request |
-| `403` | `ORIGIN_NOT_ALLOWED` | Browser origin is outside the exact allowlist and is not same-origin |
+| `403` | `ORIGIN_NOT_ALLOWED` | Restricted deployments only: browser origin is outside the exact allowlist and is not same-origin |
 | `403` | `PREFLIGHT_NOT_ALLOWED` | Browser preflight asks for unsupported methods or headers |
 | `405` | `METHOD_NOT_ALLOWED` | Unsupported method on a known route; include `Allow` |
 | `413` | `PAYLOAD_TOO_LARGE` | Request or decoded payload exceeds limits |
@@ -156,7 +156,7 @@ Malformed requests are validated before any mutation. Successful reads from a pr
 
 ## Remaining operational decisions
 
-- Add the future frontend's exact origin when known; the current policy allows same-origin browser requests and non-browser clients. CORS is not authorization.
+- Production secret routes use wildcard CORS without credentials. Use `credentials: 'omit'`. Development and self-hosted deployments can restrict exact origins. Health/readiness have no public browser CORS headers. CORS is not authorization.
 - Review initial operational defaults: 10 creation attempts per IP per minute per Cloudflare location, 10,000 stored records, and a 50 MiB stored payload budget. See README for accounting and limiter caveats.
 - Follow `docs/recovery.md`: pause operations and recover into a fresh empty database rather than serving historical secret rows. Manual Cloudflare restores are not automatically detected.
 

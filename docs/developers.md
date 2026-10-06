@@ -18,7 +18,7 @@ const { envelope, keyFragment } = await encryptText('Example secret')
 const response = await fetch(`${api}/secrets`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({ envelope, expiresIn: 86400 }),
-  cache: 'no-store', redirect: 'error', signal: AbortSignal.timeout(15000),
+  cache: 'no-store', credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(15000),
 })
 if (!response.ok) throw new Error(`Creation failed (${response.status}).`)
 const { id, deleteToken, expiresAt } = await response.json()
@@ -40,7 +40,7 @@ Only call consume after clicking Reveal. Page loading and link previews must not
 ```js
 // Run only when the recipient chooses Reveal.
 const revealed = await fetch(`${api}/secrets/${id}/consume`, {
-  method: 'POST', cache: 'no-store', redirect: 'error',
+  method: 'POST', cache: 'no-store', credentials: 'omit', redirect: 'error',
   signal: AbortSignal.timeout(15000),
 })
 if (!revealed.ok) throw new Error(`Reveal failed (${revealed.status}).`)
@@ -60,7 +60,7 @@ Opening a delete link must show confirmation. Only clicking Delete sends:
 ```js
 const deleted = await fetch(`${api}/secrets/${id}/delete`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ deleteToken }), cache: 'no-store', redirect: 'error',
+  body: JSON.stringify({ deleteToken }), cache: 'no-store', credentials: 'omit', redirect: 'error',
   signal: AbortSignal.timeout(15000),
 })
 // 204: this request deleted the secret.
@@ -71,9 +71,9 @@ Never put the token in an API URL. It authorizes deletion only. Delete and consu
 
 ## Browser access and hosted limits
 
-The hosted policy currently allows same-origin requests and clients without an Origin header, such as Node.js or curl. Arbitrary third-party browser origins receive 403. Public browser CORS support is a planned follow-up; publishing source does not change that policy.
+The hosted secret API supports any browser origin using `Access-Control-Allow-Origin: *`, including local development clients. Use `credentials: 'omit'`; the API has no cookies or credentialed CORS. Node.js and command-line clients are supported too. Health/readiness are operational endpoints without cross-origin browser headers.
 
-Self-hosted operators can configure exact origins in `config/environments.ts`. Allowed preflights permit POST and Content-Type without credentials. CORS controls browser access, not authentication or abuse.
+Self-hosted operators can choose `["*"]` for public access or exact origins in `config/environments.ts`; development defaults to same-origin only. Allowed preflights permit POST and Content-Type without credentials and never mutate secrets. Unsupported requested headers or methods receive 403. CORS controls browser access, not authentication or abuse.
 
 Creation is limited to approximately 10 attempts per IP per minute **per Cloudflare location**. Shared networks share a bucket; invalid attempts count. A 429 includes Retry-After: 60. Shared storage is capped at 10000 records and 50 MiB logical payload, including expired rows awaiting cleanup. Capacity exhaustion returns 503. Retrieval and deletion do not use the creation limiter.
 
@@ -85,7 +85,7 @@ Creation is limited to approximately 10 attempts per IP per minute **per Cloudfl
 2. Authenticate `cf` to **your own** Cloudflare account (`cf auth --help`).
 3. Create separate development and production D1 databases (`cf d1 --help`). Replace accountId in `cloudflare.config.ts`, and database IDs, names, Worker names and dedicated rate-limit namespaces in `config/environments.ts`. Checked-in identifiers belong to the original operator and grant no access.
 4. For monitoring, also replace resources in `config/monitor.ts` and point readinessUrl to your API. Alerts are disabled by default.
-5. Configure exact browser origins, then run `npm run typecheck` and `npm test`.
+5. Choose public or restricted browser origins, then run `npm run typecheck` and `npm test`.
 6. Apply migrations before deployment: `npm run db:migrate:dev`, then `npm run deploy:dev`. Use explicit production commands after replacing production resources.
 7. Connect your repository to Workers Builds using README's commands. Connections and credentials are not included in a clone. Replace the live-smoke URL in package.json for your API.
 

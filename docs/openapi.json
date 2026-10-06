@@ -3,7 +3,7 @@
   "info": {
     "title": "Xasha API",
     "version": "1.0.0",
-    "description": "Account-free, one-time encrypted secret storage. API/protocol version metadata does not add a URL version prefix. No plaintext or keys in requests; no automatic consume retries. Hosted limits are shared and availability is best effort.",
+    "description": "Account-free, one-time encrypted secret storage. API/protocol version metadata does not add a URL version prefix. No plaintext or keys in requests; no automatic consume retries. Hosted limits are shared and availability is best effort. Hosted secret routes allow any browser origin with wildcard CORS and no credentials; use credentials: omit. Preflights accept POST and Content-Type only. Health/readiness do not provide public browser CORS.",
     "license": {
       "name": "ISC",
       "identifier": "ISC"
@@ -45,6 +45,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -64,6 +71,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -75,7 +89,7 @@
             }
           },
           "403": {
-            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
@@ -101,6 +115,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -146,6 +167,13 @@
                   "type": "string"
                 },
                 "description": "Currently 60 seconds. Creation only."
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -165,6 +193,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -183,6 +218,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -209,6 +251,13 @@
                   "type": "string"
                 },
                 "description": "POST, OPTIONS"
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -247,11 +296,18 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             }
           },
           "403": {
-            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
@@ -296,6 +352,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -339,6 +402,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -358,6 +428,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -369,7 +446,7 @@
             }
           },
           "403": {
-            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
@@ -395,6 +472,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -434,6 +518,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -453,6 +544,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -471,6 +569,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -503,6 +608,13 @@
                   "type": "string"
                 },
                 "description": "POST, OPTIONS"
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -531,11 +643,18 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             }
           },
           "403": {
-            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
@@ -580,6 +699,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -623,6 +749,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             }
           },
@@ -635,6 +768,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -646,7 +786,7 @@
             }
           },
           "403": {
-            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
@@ -672,6 +812,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -711,6 +858,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -730,6 +884,13 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -748,6 +909,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },
@@ -774,6 +942,13 @@
                   "type": "string"
                 },
                 "description": "POST, OPTIONS"
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             },
             "content": {
@@ -812,11 +987,18 @@
                   "type": "string",
                   "const": "no-store"
                 }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
               }
             }
           },
           "403": {
-            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
@@ -861,6 +1043,13 @@
                 "schema": {
                   "type": "string",
                   "const": "no-store"
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
                 }
               }
             },

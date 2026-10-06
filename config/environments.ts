@@ -14,7 +14,7 @@ export const environments = {
     databaseName: 'xasha-production',
     databaseId: '5cb06d05-2d95-43a5-9a95-2b32c5a449fb',
     rateLimitNamespace: '736202',
-    allowedOrigins: [] as string[],
+    allowedOrigins: ['*'] as string[],
     serviceMode: 'active',
   },
 } as const

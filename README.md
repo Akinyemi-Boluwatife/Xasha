@@ -4,7 +4,7 @@ Backend-only one-time secret sharing service built with Hono on Cloudflare Worke
 
 Production is deployed at [api.xasha.site](https://api.xasha.site/health). The service has no accounts or login. This repository provides the API; share-link pages, encryption, and reveal controls belong to the future browser client.
 
-For integrations, start with the [developer guide](docs/developers.md), [OpenAPI specification](docs/openapi.json), and [encryption example](examples/encryption.mjs). Third-party browser origins currently require explicit approval in configuration; Node.js and command-line clients can use the hosted API directly. Original project code is [ISC licensed](LICENSE); upstream documentation attribution is in [NOTICE](NOTICE).
+For integrations, start with the [developer guide](docs/developers.md), [OpenAPI specification](docs/openapi.json), and [encryption example](examples/encryption.mjs). The hosted secret API supports public browser access without credentials, plus Node.js and command-line clients. Original project code is [ISC licensed](LICENSE); upstream documentation attribution is in [NOTICE](NOTICE).
 
 To self-host, replace the operator's Cloudflare account and database identifiers before running remote migration or deployment commands. See the developer guide for the complete setup. Publishing or cloning the source does not grant access to the operator's resources.
 
@@ -133,11 +133,11 @@ Cloudflare provides aggregate Workers and D1 metrics without request logging. Se
 
 ## Browser access
 
-`allowedOrigins` in `config/environments.ts` supplies the `ALLOWED_ORIGINS` JSON array for each environment. It defaults to `[]`, allowing same-origin browser requests and clients without an `Origin` header, such as command-line tools. No frontend address has been chosen yet.
+`allowedOrigins` in `config/environments.ts` supplies the `ALLOWED_ORIGINS` JSON array. Production uses `["*"]` to enable public browser integrations. Secret responses return `Access-Control-Allow-Origin: *` without `Access-Control-Allow-Credentials`. Browser clients should use `credentials: 'omit'`; cookies and credentialed cross-origin requests are not supported. Development keeps `[]`, allowing same-origin browser requests and clients without an Origin header.
 
-When a frontend address is known, configure its exact origin, for example `["https://app.example"]`, then rebuild and deploy. An origin contains a scheme, hostname, and optional port, with no path or trailing slash. Wildcards and `null` origins are not accepted. Configuration mistakes fail closed with `503`.
+Self-hosted operators can restrict access with exact origins, for example `["https://app.example"]`, then rebuild and deploy. Exact origins contain a scheme, hostname, and optional port, with no path or trailing slash. A wildcard must be the sole array entry; mixed wildcard lists and malformed configurations fail closed with `503`. In public mode, opaque (`null`) origins are also covered by the wildcard.
 
-Disallowed browser origins receive `403` before any secret mutation. Allowed preflights permit `POST` and `Content-Type`, expose `Retry-After`, and do not use cookies or credentials. CORS applies to `/secrets` and `/secrets/*`; it is a browser integration policy, not authentication. Anyone with a secret reference can still make a direct API request; decryption requires the complete share link. Vite's automatic CORS is disabled so local development uses the same policy.
+Restricted-mode disallowed origins receive `403` before any mutation. Preflights permit `POST` and `Content-Type`, expose `Retry-After`, and never consume or delete secrets. Unsupported requested methods or headers receive `403`. CORS applies to `/secrets` and `/secrets/*`; health and readiness remain operational endpoints without cross-origin browser headers. CORS is not authentication or abuse protection; creation throttling and shared storage caps still apply. Anyone with a secret reference can retrieve ciphertext; decryption requires the key. Vite's automatic CORS is disabled so local development uses the configured policy. This follows [Hono CORS guidance](https://hono.dev/docs/middleware/builtin/cors).
 
 `serviceMode` in `config/environments.ts` supplies `SERVICE_MODE` and defaults to `active`. Set the affected environment to `maintenance` and deploy with its matching command to block secret operations and pause scheduled cleanup while keeping health available. Follow [the recovery runbook](docs/recovery.md) before any database recovery action.
 

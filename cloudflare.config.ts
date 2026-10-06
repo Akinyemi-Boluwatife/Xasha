@@ -10,6 +10,8 @@ export default defineConfig(({ mode }) => {
     worker: defineWorker({
       name: monitorConfiguration.workerName,
       compatibilityDate: '2026-10-01',
+      // Probe the public API through Cloudflare's front door, including its Worker.
+      compatibilityFlags: ['global_fetch_strictly_public'],
       entrypoint: monitorEntrypoint,
       workersDev: false,
       previewUrls: false,

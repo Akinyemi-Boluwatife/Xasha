@@ -14,6 +14,8 @@ After three consecutive failed checks, it records production as unavailable. A s
 
 The monitor has no public workers.dev address, preview URL, or manual HTTP trigger. It is deployed using the `monitor` CLI mode from the same repository. It binds only the separate `xasha-monitor` D1 database, not the secret database.
 
+The monitor enables `global_fetch_strictly_public` so its readiness fetch reaches the public API Worker through Cloudflare's front door. Without this flag, same-zone requests can bypass Workers and attempt to reach an origin server instead. See [Cloudflare's compatibility guidance](https://developers.cloudflare.com/workers/configuration/compatibility-flags/#global-fetch-strictly-public). The target is `https://api.xasha.site/ready`; a successful actual Cron execution is verified from monitor_state, not inferred from a browser health check.
+
 One metadata row stores the capped failure count, unavailable flag, check timestamps, last HTTP status, delivery state, and a short-lived lease. Atomic lease claims and recorded schedule timestamps prevent concurrent, duplicate, or out-of-order invocations from counting twice. Leases expire after two minutes so a crashed execution can be replaced.
 
 Inspect state with an aggregate-only command:

@@ -51,13 +51,66 @@ test('allowlisted browser preflight is side-effect free and errors retain CORS h
 })
 
 test('invalid origin configuration fails closed', async () => {
-  for (const allowedOrigins of ['["*"]', '["https://client.invalid/path"]', 'not-json']) {
+  for (const allowedOrigins of ['["*", "https://client.invalid"]', '["https://client.invalid/path"]', '["null"]', 'not-json']) {
     const { runtime, db } = await setup({ allowedOrigins })
     try {
       assert.equal((await send(runtime)).status, 503)
       assert.equal((await db.prepare('SELECT secret_count FROM storage_usage').first()).secret_count, 0)
     } finally { await runtime.dispose() }
   }
+})
+
+test('public browser access preserves one-time retrieval, safe preflights and abuse limits', async () => {
+  const { runtime, db } = await setup({ allowedOrigins: '["*"]', rateLimit: 2 })
+  try {
+    const checkCors = response => {
+      assert.equal(response.headers.get('access-control-allow-origin'), '*')
+      assert.equal(response.headers.get('access-control-allow-credentials'), null)
+      assert.equal(response.headers.get('cache-control'), 'no-store')
+    }
+    const created = await send(runtime, 'https://external.invalid')
+    assert.equal(created.status, 201)
+    checkCors(created)
+    const secret = await created.json()
+    for (const path of ['/secrets', `/secrets/${secret.id}/consume`, `/secrets/${secret.id}/delete`]) {
+      const preflight = await runtime.dispatchFetch(`https://test.invalid${path}`, {
+        method: 'OPTIONS', headers: { Origin: 'https://another.invalid',
+          'Access-Control-Request-Method': 'POST', 'Access-Control-Request-Headers': 'Content-Type' },
+      })
+      assert.equal(preflight.status, 204)
+      checkCors(preflight)
+      assert.ok(preflight.headers.get('access-control-allow-methods').includes('POST'))
+    }
+    assert.equal((await db.prepare('SELECT secret_count FROM storage_usage').first()).secret_count, 1)
+    for (const headers of [{ 'Access-Control-Request-Method': 'DELETE' }, { 'Access-Control-Request-Headers': 'Authorization' }]) {
+      assert.equal((await runtime.dispatchFetch('https://test.invalid/secrets', {
+        method: 'OPTIONS', headers: { Origin: 'https://external.invalid', 'Access-Control-Request-Method': 'POST', ...headers },
+      })).status, 403)
+    }
+    const consumed = await runtime.dispatchFetch(`https://test.invalid/secrets/${secret.id}/consume`, {
+      method: 'POST', headers: { Origin: 'https://another.invalid' },
+    })
+    assert.equal(consumed.status, 200)
+    checkCors(consumed)
+    const used = await runtime.dispatchFetch(`https://test.invalid/secrets/${secret.id}/consume`, {
+      method: 'POST', headers: { Origin: 'https://external.invalid' },
+    })
+    assert.equal(used.status, 404)
+    checkCors(used)
+    const deleted = await send(runtime, 'http://localhost:3000')
+    assert.equal(deleted.status, 201)
+    checkCors(deleted)
+    const deletion = await deleted.json()
+    const throttled = await send(runtime, 'null')
+    assert.equal(throttled.status, 429)
+    checkCors(throttled)
+    assert.equal(throttled.headers.get('retry-after'), '60')
+    assert.ok(throttled.headers.get('access-control-expose-headers').toLowerCase().includes('retry-after'))
+    const removed = await send(runtime, 'https://another.invalid', `/secrets/${deletion.id}/delete`, { deleteToken: deletion.deleteToken })
+    assert.equal(removed.status, 204)
+    checkCors(removed)
+    assert.equal((await db.prepare('SELECT secret_count FROM storage_usage').first()).secret_count, 0)
+  } finally { await runtime.dispose() }
 })
 
 test('maintenance mode blocks mutations and cleanup but keeps health available', async () => {
