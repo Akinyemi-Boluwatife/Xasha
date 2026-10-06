@@ -1,0 +1,1202 @@
+{
+  "openapi": "3.1.2",
+  "info": {
+    "title": "Xasha API",
+    "version": "1.0.0",
+    "description": "Account-free, one-time encrypted secret storage. API/protocol version metadata does not add a URL version prefix. No plaintext or keys in requests; no automatic consume retries. Hosted limits are shared and availability is best effort.",
+    "license": {
+      "name": "ISC",
+      "identifier": "ISC"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://xasha.boluakinyemi500.workers.dev",
+      "description": "Hosted service"
+    }
+  ],
+  "security": [],
+  "tags": [
+    {
+      "name": "Secrets",
+      "description": "Create, consume and delete encrypted envelopes."
+    },
+    {
+      "name": "Status",
+      "description": "Read-only operational checks."
+    }
+  ],
+  "paths": {
+    "/secrets": {
+      "post": {
+        "operationId": "createSecret",
+        "summary": "Store a client-encrypted secret",
+        "description": "Never send plaintext or the decryption key. Creation is not idempotent; an uncertain response may leave an orphaned secret.",
+        "tags": [
+          "Secrets"
+        ],
+        "responses": {
+          "201": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreatedSecret"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST: malformed JSON, fields, encoding or body.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE: 48 KiB body limit or decoded payload limit exceeded.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: creation attempts exceed the location-local IP limit.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Currently 60 seconds. Creation only."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message with no internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "METHOD_NOT_ALLOWED for unsupported methods on this known route.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "POST, OPTIONS"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "operationId": "preflightCreateSecret",
+        "summary": "Side-effect-free browser preflight",
+        "tags": [
+          "Secrets"
+        ],
+        "responses": {
+          "204": {
+            "description": "No mutation. Allowed preflight permits POST and Content-Type without credentials.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/secrets/{id}/consume": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "32-character base64url reference. Malformed references also receive the uniform 404 when the request body is otherwise valid."
+        }
+      ],
+      "post": {
+        "operationId": "consumeSecret",
+        "summary": "Atomically retrieve and remove a secret",
+        "description": "Send no request body. Call only after an explicit reveal action. NEVER automatically retry: any response loss, server error or decryption failure may occur after irreversible consumption.",
+        "tags": [
+          "Secrets"
+        ],
+        "responses": {
+          "200": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConsumedSecret"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST: malformed JSON, fields, encoding or body.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE: 48 KiB body limit or decoded payload limit exceeded.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message with no internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "SECRET_UNAVAILABLE: used, expired, deleted, missing or malformed reference.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                },
+                "example": {
+                  "error": {
+                    "code": "SECRET_UNAVAILABLE",
+                    "message": "This secret is no longer available."
+                  }
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "METHOD_NOT_ALLOWED for unsupported methods on this known route.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "POST, OPTIONS"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "operationId": "preflightConsumeSecret",
+        "summary": "Side-effect-free browser preflight",
+        "tags": [
+          "Secrets"
+        ],
+        "responses": {
+          "204": {
+            "description": "No mutation. Allowed preflight permits POST and Content-Type without credentials.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/secrets/{id}/delete": {
+      "parameters": [
+        {
+          "name": "id",
+          "in": "path",
+          "required": true,
+          "schema": {
+            "type": "string"
+          },
+          "description": "32-character base64url reference. Malformed references also receive the uniform 404 when the request body is otherwise valid."
+        }
+      ],
+      "post": {
+        "operationId": "deleteSecret",
+        "summary": "Delete with a separate private token",
+        "description": "Click confirmation before calling. Deletion and consumption race atomically; deletion cannot undo an earlier retrieval. A retry can return 404 after an earlier successful deletion.",
+        "tags": [
+          "Secrets"
+        ],
+        "responses": {
+          "204": {
+            "description": "Success",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "INVALID_REQUEST: malformed JSON, fields, encoding or body.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE: 48 KiB body limit or decoded payload limit exceeded.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message with no internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "DELETE_UNAVAILABLE: unavailable reference or incorrect well-formed token.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "405": {
+            "description": "METHOD_NOT_ALLOWED for unsupported methods on this known route.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Allow": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "POST, OPTIONS"
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        },
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRequest"
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "operationId": "preflightDeleteSecret",
+        "summary": "Side-effect-free browser preflight",
+        "tags": [
+          "Secrets"
+        ],
+        "responses": {
+          "204": {
+            "description": "No mutation. Allowed preflight permits POST and Content-Type without credentials.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "ORIGIN_NOT_ALLOWED or PREFLIGHT_NOT_ALLOWED: browser policy rejection.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health": {
+      "get": {
+        "operationId": "health",
+        "summary": "Liveness",
+        "tags": [
+          "Status"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service status",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Health"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message with no internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ready": {
+      "get": {
+        "operationId": "ready",
+        "summary": "Read-only service readiness",
+        "tags": [
+          "Status"
+        ],
+        "responses": {
+          "200": {
+            "description": "Service status",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message with no internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service unavailable; status response rather than Error envelope.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Readiness"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Envelope": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "iv",
+          "ciphertext"
+        ],
+        "properties": {
+          "version": {
+            "type": "integer",
+            "const": 1
+          },
+          "iv": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "minLength": 16,
+            "maxLength": 16,
+            "description": "Canonical unpadded base64url of a 12-byte IV."
+          },
+          "ciphertext": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "minLength": 23,
+            "maxLength": 43712,
+            "description": "Canonical unpadded base64url; decoded length 17\u201332784 bytes, including a 16-byte GCM tag. Canonical encoding and decoded bounds are checked by the server."
+          }
+        }
+      },
+      "CreateRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "envelope"
+        ],
+        "properties": {
+          "envelope": {
+            "$ref": "#/components/schemas/Envelope"
+          },
+          "expiresIn": {
+            "type": "integer",
+            "enum": [
+              3600,
+              86400,
+              604800
+            ],
+            "default": 86400
+          }
+        }
+      },
+      "CreatedSecret": {
+        "type": "object",
+        "required": [
+          "id",
+          "deleteToken",
+          "expiresAt"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "minLength": 32,
+            "maxLength": 32
+          },
+          "deleteToken": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "minLength": 43,
+            "maxLength": 43,
+            "description": "Returned once. Authorizes deletion only; store privately."
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "ConsumedSecret": {
+        "type": "object",
+        "required": [
+          "envelope"
+        ],
+        "properties": {
+          "envelope": {
+            "$ref": "#/components/schemas/Envelope"
+          }
+        }
+      },
+      "DeleteRequest": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "deleteToken"
+        ],
+        "properties": {
+          "deleteToken": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "minLength": 43,
+            "maxLength": 43,
+            "description": "Canonical unpadded base64url of 32 bytes."
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message"
+            ],
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            }
+          }
+        }
+      },
+      "Health": {
+        "type": "object",
+        "required": [
+          "status",
+          "service"
+        ],
+        "properties": {
+          "status": {
+            "const": "ok",
+            "type": "string"
+          },
+          "service": {
+            "const": "xasha",
+            "type": "string"
+          }
+        }
+      },
+      "Readiness": {
+        "type": "object",
+        "required": [
+          "status",
+          "service"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready",
+              "unavailable"
+            ]
+          },
+          "service": {
+            "const": "xasha",
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

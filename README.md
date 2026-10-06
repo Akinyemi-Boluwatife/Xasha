@@ -4,6 +4,10 @@ Backend-only one-time secret sharing service built with Hono on Cloudflare Worke
 
 Production is deployed at [xasha.boluakinyemi500.workers.dev](https://xasha.boluakinyemi500.workers.dev/health). The service has no accounts or login. This repository provides the API; share-link pages, encryption, and reveal controls belong to the future browser client.
 
+For integrations, start with the [developer guide](docs/developers.md), [OpenAPI specification](docs/openapi.json), and [encryption example](examples/encryption.mjs). Third-party browser origins currently require explicit approval in configuration; Node.js and command-line clients can use the hosted API directly. Original project code is [ISC licensed](LICENSE); upstream documentation attribution is in [NOTICE](NOTICE).
+
+To self-host, replace the operator's Cloudflare account and database identifiers before running remote migration or deployment commands. See the developer guide for the complete setup. Publishing or cloning the source does not grant access to the operator's resources.
+
 ## How Xasha works
 
 1. The client encrypts text before sending it to the API. The backend receives an encrypted envelope, never the plaintext or decryption key.
@@ -212,6 +216,9 @@ Environment selection follows [cf project modes](https://developers.cloudflare.c
 ## Documentation
 
 - Product requirements: [PRD.md](PRD.md)
+- Developer integration and self-hosting: [docs/developers.md](docs/developers.md)
+- OpenAPI specification: [docs/openapi.json](docs/openapi.json)
+- Public release review: [docs/public-release-review.md](docs/public-release-review.md)
 - Secret API contract: [docs/api-contract.md](docs/api-contract.md)
 - Recovery runbook: [docs/recovery.md](docs/recovery.md)
 - Monitoring guide: [docs/monitoring.md](docs/monitoring.md)
