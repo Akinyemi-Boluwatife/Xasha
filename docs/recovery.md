@@ -10,6 +10,8 @@ This is an operator procedure supported by maintenance mode, not automatic resto
 
 ## Maintenance mode
 
+Pause the production Workers Builds connection before recovery so a new push or queued build cannot overwrite maintenance mode or switch database bindings. Cancel any queued or running production builds and verify they have stopped. Resume automatic builds only after the recovered configuration is committed to `main` and verified. The build connection is managed separately from Worker runtime configuration.
+
 Set the affected environment's `serviceMode` in `config/environments.ts` to `maintenance`, then run `npm run deploy:production` or `npm run deploy:dev` using the authenticated `cf` environment. This supplies `SERVICE_MODE` to the Worker. Missing or invalid values also block secret operations. The default `npm run deploy` targets development; it does not change production.
 
 - Secret creation, consumption, and deletion return `503` for otherwise allowed requests before touching D1 or the rate limiter.
