@@ -165,17 +165,26 @@ Disallowed browser origins receive `403` before any secret mutation. Allowed pre
 
 | Path | Responsibility |
 | --- | --- |
-| `src/index.ts` | Hono routes, request limits, atomic D1 operations, and Worker handlers |
-| `src/protocol.ts` | Envelope validation, expiry choices, identifiers, and token hashing |
+| `src/index.ts` | App composition, shared policies, and routes mounted with `app.route()` |
+| `src/routes/` | Feature-based Hono sub-apps: `secrets.ts` groups all secret routes; `status.ts` groups health and readiness |
+| `src/secrets/` | Secret actions grouped in `actions.ts`, validation, and shared responses |
+| `src/status/` | Read-only readiness checks |
+| `src/middleware/` | Request policy, service mode, and creation rate limiting |
+| `src/http/` | Shared error responses and method handling |
+| `src/types.ts` | Shared Worker bindings and envelope types |
+| `src/scheduled.ts` | Scheduled cleanup handler |
+| `src/protocol.ts` | Bounded body parsing, encoding, token hashing, and safe database errors |
 | `src/browser-policy.ts` | Browser-origin controls |
 | `src/cleanup.ts` | Bounded expiry cleanup |
-| `monitor/` | Scheduled readiness checks, alert delivery, and monitoring schema |
+| `monitor/` | Check orchestration, separate readiness probe and alert actions, and monitoring schema |
 | `config/monitor.ts` | Monitoring resources, target, pause mode, and delivery settings |
 | `config/environments.ts` | Separate development and production resources, browser origins, and service mode |
 | `cloudflare.config.ts` | Worker bindings, limits, privacy settings, and cleanup schedule |
 | `migrations/` | Versioned D1 schema changes |
 | `scripts/migrate.mjs` | Environment-specific migration command |
 | `tests/` | Integration tests and opt-in live smoke check |
+
+Route handlers stay beside their path definitions to preserve Hono's parameter inference. They validate HTTP input and call the action modules; database mutations live in `src/secrets/`. Common policies are registered before sub-apps. The scheduled cleanup handler is a Worker event handler, separate from HTTP routes. This follows [Hono's larger application guidance](https://hono.dev/docs/guides/best-practices#building-a-larger-application).
 
 ## Operational safeguards
 
