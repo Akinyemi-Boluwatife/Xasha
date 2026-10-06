@@ -34,6 +34,7 @@ export default defineConfig(({ mode }) => {
     accountId: '63eca1c8f22792777a93b6ddd9e18534',
     worker: defineWorker({
       name: environment.workerName,
+      domains: [...environment.domains],
       compatibilityDate: '2026-10-01',
       entrypoint,
       workersDev: true,

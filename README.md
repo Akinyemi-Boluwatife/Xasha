@@ -2,7 +2,7 @@
 
 Backend-only one-time secret sharing service built with Hono on Cloudflare Workers and D1.
 
-Production is deployed at [xasha.boluakinyemi500.workers.dev](https://xasha.boluakinyemi500.workers.dev/health). The service has no accounts or login. This repository provides the API; share-link pages, encryption, and reveal controls belong to the future browser client.
+Production is deployed at [api.xasha.site](https://api.xasha.site/health). The service has no accounts or login. This repository provides the API; share-link pages, encryption, and reveal controls belong to the future browser client.
 
 For integrations, start with the [developer guide](docs/developers.md), [OpenAPI specification](docs/openapi.json), and [encryption example](examples/encryption.mjs). Third-party browser origins currently require explicit approval in configuration; Node.js and command-line clients can use the hosted API directly. Original project code is [ISC licensed](LICENSE); upstream documentation attribution is in [NOTICE](NOTICE).
 
@@ -49,16 +49,14 @@ This deploys the development Worker. The default build, deploy, and migration co
 
 ## Hosting
 
-`api.xasha.site` is the planned production custom hostname. Cloudflare activation is pending; the workers.dev URLs below remain the verified endpoints.
-
-Both environments use Cloudflare Workers and separate D1 databases, with no custom domain.
+Both environments use Cloudflare Workers and separate D1 databases. Production uses the Worker Custom Domain `api.xasha.site`; the apex `xasha.site` is reserved for a future frontend. The existing `https://xasha.boluakinyemi500.workers.dev` endpoint remains available.
 
 | Environment | API URL | D1 database | Rate-limit namespace |
 | --- | --- | --- | --- |
 | Development | https://xasha-dev.boluakinyemi500.workers.dev | xasha-dev | 736201 |
-| Production | https://xasha.boluakinyemi500.workers.dev | xasha-production | 736202 |
+| Production | https://api.xasha.site | xasha-production | 736202 |
 
-`GET /health` is available in both environments. No custom domain or frontend origin is configured.
+`GET /health` is available in both environments. No frontend origin is configured. Production custom domains are declared in `config/environments.ts` and applied by `cloudflare.config.ts`, following [cf configuration](https://developers.cloudflare.com/cf/projects/cloudflare-config/) and [Worker Custom Domains](https://developers.cloudflare.com/workers/configuration/routing/custom-domains/).
 
 To migrate and deploy production:
 
@@ -67,7 +65,7 @@ npm run typecheck
 npm test
 npm run db:migrate:production
 npm run deploy:production
-node tests/live-smoke.mjs https://xasha.boluakinyemi500.workers.dev
+node tests/live-smoke.mjs https://api.xasha.site
 ```
 
 The live smoke test creates disposable synthetic secrets and verifies retrieval and deletion. It consumes those secrets. `npm run build:production` builds production without deploying.

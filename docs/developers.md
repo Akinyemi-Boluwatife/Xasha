@@ -1,6 +1,6 @@
 # Integrating with Xasha
 
-Xasha is an HTTP API with no accounts or API keys. Use any HTTP client; Hono RPC is optional. Hosted base URL: `https://xasha.boluakinyemi500.workers.dev`.
+Xasha is an HTTP API with no accounts or API keys. Use any HTTP client; Hono RPC is optional. Hosted base URL: `https://api.xasha.site`.
 
 Use [OpenAPI](openapi.json) for schemas and [the API contract](api-contract.md) for protocol details. Share-link and delete-confirmation pages belong to a separate client, which this backend does not serve.
 
@@ -13,7 +13,7 @@ Envelope version 1 uses AES-256-GCM, a fresh random 32-byte key and 12-byte IV p
 ```js
 import { encryptText, decryptText } from './examples/encryption.mjs'
 
-const api = 'https://xasha.boluakinyemi500.workers.dev'
+const api = 'https://api.xasha.site'
 const { envelope, keyFragment } = await encryptText('Example secret')
 const response = await fetch(`${api}/secrets`, {
   method: 'POST', headers: { 'Content-Type': 'application/json' },
