@@ -166,7 +166,7 @@
                 "schema": {
                   "type": "string"
                 },
-                "description": "Currently 60 seconds. Creation only."
+                "description": "Currently 60 seconds. No secret mutation."
               },
               "Access-Control-Allow-Origin": {
                 "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
@@ -624,6 +624,38 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "RATE_LIMITED: shared reveal/deletion IP budget exceeded before parsing or database access.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Currently 60 seconds. No secret mutation."
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         }
       },
@@ -958,6 +990,38 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "RATE_LIMITED: shared reveal/deletion IP budget exceeded before parsing or database access.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Currently 60 seconds. No secret mutation."
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "schema": {
+                  "type": "string",
+                  "const": "*"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
           }
         },
         "requestBody": {
@@ -1198,7 +1262,7 @@
             }
           },
           "503": {
-            "description": "Service unavailable; status response rather than Error envelope.",
+            "description": "Service unavailable: readiness status response, or SERVICE_UNAVAILABLE error when its limiter fails closed.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
@@ -1211,7 +1275,39 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Readiness"
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/Readiness"
+                    },
+                    {
+                      "$ref": "#/components/schemas/Error"
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: readiness IP budget exceeded before database access. GET and HEAD share a budget.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "const": "no-store"
+                }
+              },
+              "Retry-After": {
+                "schema": {
+                  "type": "string"
+                },
+                "description": "Currently 60 seconds. No secret mutation."
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
                 }
               }
             }
@@ -1247,7 +1343,7 @@
             "pattern": "^[A-Za-z0-9_-]+$",
             "minLength": 23,
             "maxLength": 43712,
-            "description": "Canonical unpadded base64url; decoded length 17\u201332784 bytes, including a 16-byte GCM tag. Canonical encoding and decoded bounds are checked by the server."
+            "description": "Canonical unpadded base64url; decoded length 17–32784 bytes, including a 16-byte GCM tag. Canonical encoding and decoded bounds are checked by the server."
           }
         }
       },

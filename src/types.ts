@@ -1,6 +1,8 @@
 export type Bindings = {
   DB: D1Database;
   CREATE_LIMITER: RateLimit;
+  ACCESS_LIMITER: RateLimit;
+  READINESS_LIMITER: RateLimit;
   MAX_SECRETS: string;
   MAX_STORAGE_BYTES: string;
   ALLOWED_ORIGINS: string;

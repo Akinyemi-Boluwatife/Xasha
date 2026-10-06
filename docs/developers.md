@@ -6,6 +6,8 @@ Use [OpenAPI](openapi.json) for schemas and [the API contract](api-contract.md) 
 
 ## Encrypt and create
 
+For a hands-on sender/recipient test without a frontend, run `node examples/interactive.mjs` from the project root with Node.js 22.18+. Choose **1** to type a secret and obtain a share code plus a separate private delete code. In a second terminal, run the same command, choose **2**, paste the share code, and confirm Reveal. Try again to see that it is unavailable. Choose **3** with the private delete code to delete a different unread secret. These codes are for this terminal tool, not browser links. The tool uses the live hosted API by default, keeps encryption keys local, and writes no files. Use dummy text because terminal output displays the text and codes. An optional API origin argument supports self-hosting, for example `node examples/interactive.mjs http://localhost:8787`.
+
 [The encryption example](../examples/encryption.mjs) exports `encryptText()` and `decryptText()`. It works with Web Crypto in Node.js 22.18+ and compatible secure browser contexts. It has no network, logging or storage side effects. It is an interoperability example, not a published SDK.
 
 Envelope version 1 uses AES-256-GCM, a fresh random 32-byte key and 12-byte IV per secret, a 128-bit authentication tag appended to ciphertext, no additional authenticated data, and canonical unpadded base64url. Enforce 1–32768 UTF-8 **bytes**, not characters. Never send plaintext or the key to the API.
@@ -75,7 +77,9 @@ The hosted secret API supports any browser origin using `Access-Control-Allow-Or
 
 Self-hosted operators can choose `["*"]` for public access or exact origins in `config/environments.ts`; development defaults to same-origin only. Allowed preflights permit POST and Content-Type without credentials and never mutate secrets. Unsupported requested headers or methods receive 403. CORS controls browser access, not authentication or abuse.
 
-Creation is limited to approximately 10 attempts per IP per minute **per Cloudflare location**. Shared networks share a bucket; invalid attempts count. A 429 includes Retry-After: 60. Shared storage is capped at 10000 records and 50 MiB logical payload, including expired rows awaiting cleanup. Capacity exhaustion returns 503. Retrieval and deletion do not use the creation limiter.
+Creation is limited to approximately 10 attempts per IP per minute **per Cloudflare location**. Reveal and deletion share a separate limit of 120 attempts per IP per minute, across all secret IDs. Readiness has its own limit of 60 requests per IP per minute, shared by GET and HEAD. Invalid attempts count; shared networks share buckets. A 429 includes Retry-After: 60 and does not consume or delete a secret. No automatic consume retries are permitted. Creation throttling does not exhaust the reveal/deletion budget, and browser preflights do not spend these budgets. Limits are approximate and do not provide a global traffic or billing cap. See [security safeguards](security.md).
+
+Shared storage is capped at 10000 records and 50 MiB logical payload, including expired rows awaiting cleanup. Capacity exhaustion returns 503.
 
 `GET /health` and `GET /ready` are read-only probes. Hosted access is best effort with no availability guarantee; this is not durable storage.
 
@@ -87,7 +91,7 @@ Creation is limited to approximately 10 attempts per IP per minute **per Cloudfl
 4. For monitoring, also replace resources in `config/monitor.ts` and point readinessUrl to your API. Alerts are disabled by default.
 5. Choose public or restricted browser origins, then run `npm run typecheck` and `npm test`.
 6. Apply migrations before deployment: `npm run db:migrate:dev`, then `npm run deploy:dev`. Use explicit production commands after replacing production resources.
-7. Connect your repository to Workers Builds using README's commands. Connections and credentials are not included in a clone. Replace the live-smoke URL in package.json for your API.
+7. Connect your repository to Workers Builds: API build command `npm run ci:check`, deploy command `npm run ci:deploy`; monitor build command `npm run ci:monitor:check`, deploy command `npm run ci:monitor:deploy`. Both check commands block known high/critical dependency audit findings before testing. Connections and credentials are not included in a clone. Replace the live-smoke URL in package.json for your API.
 
 Local migrations: `npm run db:migrate:dev -- --local`. `npm run dev` prints the local URL and uses simulated D1. Isolated tests require no production credentials. Store credentials in Cloudflare secret bindings, never Git. Follow [fresh-database recovery](recovery.md); serving restored historical rows can release a consumed secret again.
 

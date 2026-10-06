@@ -6,6 +6,8 @@
 
 Readiness checks read schema and aggregate metadata only. They never create, retrieve, delete, or inspect secret content. The public response exposes no counts or database diagnostics. It is a read-only dependency check, not proof that every write path, quota, or encryption flow works. Deployments also run the synthetic lifecycle smoke test, which waits up to 60 seconds for readiness during propagation. Only the read-only readiness probe is retried; secret consumption is never retried.
 
+Readiness GET and HEAD share a separate limit of 60 requests per IP per minute per Cloudflare location. Throttling returns `429` with `Retry-After: 60` before querying D1; missing or failing limiter bindings return `503` with the standard error envelope. The monitor counts either as a failed check. `/health` remains a cheap, unthrottled liveness endpoint with no database access.
+
 ## Scheduled monitor
 
 The separate `xasha-monitor` Worker runs every five minutes and requests the production `/ready` URL with a ten-second timeout. Network failures, non-200 responses, malformed status JSON, unexpected service/status, and oversized status bodies count as failures. It follows no redirects.

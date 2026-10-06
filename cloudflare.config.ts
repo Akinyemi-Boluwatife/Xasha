@@ -53,6 +53,8 @@ export default defineConfig(({ mode }) => {
         ALLOWED_ORIGINS: bindings.text(JSON.stringify(environment.allowedOrigins)),
         SERVICE_MODE: bindings.text(environment.serviceMode),
         CREATE_LIMITER: bindings.rateLimit({ namespace: environment.rateLimitNamespace, simple: { limit: 10, period: 60 } }),
+        ACCESS_LIMITER: bindings.rateLimit({ namespace: environment.accessRateLimitNamespace, simple: { limit: 120, period: 60 } }),
+        READINESS_LIMITER: bindings.rateLimit({ namespace: environment.readinessRateLimitNamespace, simple: { limit: 60, period: 60 } }),
         MAX_SECRETS: bindings.text('10000'),
         MAX_STORAGE_BYTES: bindings.text('52428800'),
         DB: bindings.d1({

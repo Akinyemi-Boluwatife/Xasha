@@ -30,6 +30,8 @@ There is no endpoint to list secrets, inspect their availability, recover deleti
 
 Readiness returns `{ "status": "ready", "service": "xasha" }` or `{ "status": "unavailable", "service": "xasha" }`. It uses a status response rather than the secret API's error envelope and exposes no secret content or counters. See [monitoring](monitoring.md) for the exact check and its limitations.
 
+Throttled readiness requests return `429 RATE_LIMITED` using the standard error envelope and `Retry-After: 60`, before querying D1. GET and HEAD share this limit. Missing or failing readiness limiter bindings return `503 SERVICE_UNAVAILABLE` using the error envelope, rather than querying D1.
+
 ## Encrypted envelope
 
 Envelope version 1 uses AES-256-GCM, a 12-byte IV, and a 16-byte authentication tag appended to the ciphertext. Binary fields use canonical, unpadded base64url. The version fixes the encryption parameters, so there is no caller-controlled algorithm field.
@@ -148,7 +150,7 @@ All errors use `{ "error": { "code": "...", "message": "..." } }` with fixed mes
 | `405` | `METHOD_NOT_ALLOWED` | Unsupported method on a known route; include `Allow` |
 | `413` | `PAYLOAD_TOO_LARGE` | Request or decoded payload exceeds limits |
 | `415` | `UNSUPPORTED_MEDIA_TYPE` | Unsupported request content type or encoding |
-| `429` | `RATE_LIMITED` | Usage limit reached; include `Retry-After` when known |
+| `429` | `RATE_LIMITED` | IP request budget exhausted; `Retry-After: 60`; no secret mutation |
 | `503` | `SERVICE_UNAVAILABLE` | Temporary dependency failure or creation capacity exhausted |
 | `500` | `INTERNAL_ERROR` | Unexpected server failure, without internal details |
 
@@ -157,7 +159,7 @@ Malformed requests are validated before any mutation. Successful reads from a pr
 ## Remaining operational decisions
 
 - Production secret routes use wildcard CORS without credentials. Use `credentials: 'omit'`. Development and self-hosted deployments can restrict exact origins. Health/readiness have no public browser CORS headers. CORS is not authorization.
-- Review initial operational defaults: 10 creation attempts per IP per minute per Cloudflare location, 10,000 stored records, and a 50 MiB stored payload budget. See README for accounting and limiter caveats.
+- Initial request limits per IP per minute per Cloudflare location: 10 creation attempts, 120 reveal/deletion attempts combined across IDs, and 60 readiness requests. Separate namespaces keep creation abuse from exhausting the reveal/deletion budget. Invalid attempts count; preflights and unsupported secret methods do not. Limits are approximate. Storage is capped at 10,000 records and 50 MiB logical payload. See [security safeguards](security.md) for limitations.
 - Follow `docs/recovery.md`: pause operations and recover into a fresh empty database rather than serving historical secret rows. Manual Cloudflare restores are not automatically detected.
 
 ## Documentation consulted
