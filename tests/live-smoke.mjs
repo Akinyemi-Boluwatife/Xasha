@@ -3,6 +3,9 @@ import assert from 'node:assert/strict'
 
 const base = process.argv[2]
 if (!base) throw new Error('Usage: node tests/live-smoke.mjs <service-url>')
+const readiness = await fetch(new URL('/ready', base), { signal: AbortSignal.timeout(15000), cache: 'no-store' })
+assert.equal(readiness.status, 200)
+assert.deepEqual(await readiness.json(), { status: 'ready', service: 'xasha' })
 const send = (path, body) => fetch(new URL(path, base), {
   method: 'POST',
   ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
@@ -28,4 +31,4 @@ assert.ok(responses.every(response => response.headers.get('cache-control') === 
 const deleted = await create()
 assert.equal((await send(`/secrets/${deleted.id}/delete`, { deleteToken: deleted.deleteToken })).status, 204)
 assert.equal((await send(`/secrets/${deleted.id}/consume`)).status, 404)
-console.log('Live smoke passed: origin rejection, atomic consumption, deletion, and no-store responses.')
+console.log('Live smoke passed: readiness, origin rejection, atomic consumption, deletion, and no-store responses.')

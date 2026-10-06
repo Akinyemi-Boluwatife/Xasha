@@ -22,8 +22,11 @@ This document translates the backend requirements in `PRD.md` into an API agreem
 | Consume | `POST /secrets/{id}/consume` | `200` with the encrypted envelope |
 | Delete | `POST /secrets/{id}/delete` | `204` with no body |
 | Liveness | `GET /health` | `200` with service status; already implemented |
+| Readiness | `GET /ready` | `200` when active and D1 metadata is readable, otherwise `503` |
 
 There is no endpoint to list secrets, inspect their availability, recover deletion tokens, or retrieve content without consuming it. The backend does not serve share or delete confirmation pages.
+
+Readiness returns `{ "status": "ready", "service": "xasha" }` or `{ "status": "unavailable", "service": "xasha" }`. It uses a status response rather than the secret API's error envelope and exposes no secret content or counters. See [monitoring](monitoring.md) for the exact check and its limitations.
 
 ## Encrypted envelope
 

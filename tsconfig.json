@@ -12,5 +12,5 @@
     "verbatimModuleSyntax": true,
     "skipLibCheck": true
   },
-  "include": ["src", "cloudflare.config.ts", "vite.config.ts"]
+  "include": ["src", "monitor", "config", "cloudflare.config.ts", "vite.config.ts"]
 }

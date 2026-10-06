@@ -83,7 +83,7 @@ Build settings are managed in Cloudflare under **Workers & Pages → xasha → S
 | Node.js | `24.18.0`, selected by `.node-version` |
 | Preview builds | Disabled |
 
-`ci:check` checks TypeScript, runs isolated integration tests, builds production, and validates the build with a deployment dry run. `ci:deploy` applies production D1 migrations, uploads that prebuilt production bundle using `cf`, and verifies the live API with disposable synthetic secrets. A failed check or migration stops deployment. A failed live check marks the build failed after deployment; it does not roll back code or database changes. Use the [recovery runbook](docs/recovery.md) for incidents.
+`ci:check` checks TypeScript, runs isolated integration tests, and builds and validates both the monitor and production API with deployment dry runs. `ci:deploy` applies production and monitor D1 migrations, uploads the prebuilt production API bundle using `cf`, verifies the live API with disposable synthetic secrets, then builds and deploys the monitor. A failed check or migration stops deployment. A failed live check or monitor deployment marks the build failed after the API deployment; it does not roll back code or database changes. Use the [recovery runbook](docs/recovery.md) for incidents.
 
 Workers Builds uses its configured Cloudflare build token. That token must permit Worker deployment and D1 migrations in Xasha's account. No Cloudflare token is stored in GitHub Actions. Build credentials are accessible to build scripts, so only trusted changes should be merged to `main`.
 
@@ -98,6 +98,7 @@ Creation, atomic one-time consumption, and token-authorized deletion are impleme
 | Method | Route | Purpose |
 | --- | --- | --- |
 | `GET` | `/health` | Check service liveness |
+| `GET` | `/ready` | Check active service mode and read-only D1 readiness |
 | `POST` | `/secrets` | Store an encrypted envelope and return its reference, deletion token, and expiry |
 | `POST` | `/secrets/{id}/consume` | Retrieve and consume an available envelope atomically |
 | `POST` | `/secrets/{id}/delete` | Delete using the private token supplied in the JSON body |
@@ -120,6 +121,12 @@ The tests build the Worker and exercise encryption interoperability, concurrent 
 
 Browser-origin controls and maintenance mode are implemented. Recovery uses the [fresh-database runbook](docs/recovery.md); there is no automatic restore detection or consume retry.
 
+## Monitoring
+
+The separate `xasha-monitor` Worker checks production `/ready` every five minutes and records an outage after three consecutive failures. It uses its own D1 database and has no public URL. **Webhook delivery is disabled until a destination is configured.** Outage and recovery delivery support is implemented and tested.
+
+Cloudflare provides aggregate Workers and D1 metrics without request logging. See [the monitoring guide](docs/monitoring.md) for status inspection, webhook setup, pausing checks, and limitations. A monitor hosted on Cloudflare cannot reliably detect an outage that also stops Cloudflare's monitoring infrastructure.
+
 ## Browser access
 
 `allowedOrigins` in `config/environments.ts` supplies the `ALLOWED_ORIGINS` JSON array for each environment. It defaults to `[]`, allowing same-origin browser requests and clients without an `Origin` header, such as command-line tools. No frontend address has been chosen yet.
@@ -139,11 +146,14 @@ Disallowed browser origins receive `403` before any secret mutation. Allowed pre
 | `npm test` | Build and run isolated Workers/D1 integration tests |
 | `npm run build` | Build development |
 | `npm run build:production` | Build production |
+| `npm run build:monitor` | Build the monitoring Worker |
 | `npm run db:migrate:dev` | Apply migrations to remote development D1 |
 | `npm run db:migrate:dev -- --local` | Apply migrations to local development D1 |
 | `npm run db:migrate:production` | Apply migrations to production D1 |
+| `npm run db:migrate:monitor` | Apply migrations to the monitor's separate D1 database |
 | `npm run deploy:dev` | Deploy development |
 | `npm run deploy:production` | Deploy production |
+| `npm run deploy:monitor` | Deploy the scheduled monitoring Worker |
 | `npm run ci:check` | Run the Workers Builds checks and validate production without uploading |
 | `npm run ci:deploy` | Migrate, deploy the prebuilt production bundle, and verify the live API |
 
@@ -157,6 +167,8 @@ Disallowed browser origins receive `403` before any secret mutation. Allowed pre
 | `src/protocol.ts` | Envelope validation, expiry choices, identifiers, and token hashing |
 | `src/browser-policy.ts` | Browser-origin controls |
 | `src/cleanup.ts` | Bounded expiry cleanup |
+| `monitor/` | Scheduled readiness checks, alert delivery, and monitoring schema |
+| `config/monitor.ts` | Monitoring resources, target, pause mode, and delivery settings |
 | `config/environments.ts` | Separate development and production resources, browser origins, and service mode |
 | `cloudflare.config.ts` | Worker bindings, limits, privacy settings, and cleanup schedule |
 | `migrations/` | Versioned D1 schema changes |
@@ -191,6 +203,7 @@ Environment selection follows [cf project modes](https://developers.cloudflare.c
 - Product requirements: [PRD.md](PRD.md)
 - Secret API contract: [docs/api-contract.md](docs/api-contract.md)
 - Recovery runbook: [docs/recovery.md](docs/recovery.md)
+- Monitoring guide: [docs/monitoring.md](docs/monitoring.md)
 - Browser CORS guidance: https://hono.dev/docs/middleware/builtin/cors
 - Local Hono reference: `docs/hono-llms-full.txt`
 - https://hono.dev/docs/getting-started/cloudflare-workers
