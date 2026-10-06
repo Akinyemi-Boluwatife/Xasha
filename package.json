@@ -3,12 +3,17 @@
   "version": "1.0.0",
   "description": "",
   "scripts": {
-    "dev": "cf dev",
-    "build": "cf build",
-    "deploy": "cf deploy",
+    "dev": "cf dev --mode development",
+    "build": "cf build --mode development",
+    "build:production": "cf build --mode production",
+    "deploy": "npm run deploy:dev",
+    "deploy:dev": "cf deploy --mode development",
+    "deploy:production": "cf deploy --mode production",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "db:migrate": "cf d1 migrations apply 6da3fc49-e7da-467e-a86a-ab041b5cec71"
+    "db:migrate": "npm run db:migrate:dev",
+    "db:migrate:dev": "node scripts/migrate.mjs development",
+    "db:migrate:production": "node scripts/migrate.mjs production"
   },
   "keywords": [],
   "author": "",

@@ -6,7 +6,7 @@ This document translates the backend requirements in `PRD.md` into an API agreem
 
 ## Conventions
 
-- Secret endpoints use the `/v1` prefix and HTTPS.
+- Secret endpoints use `/secrets` without a version prefix and require HTTPS.
 - Request and response bodies use JSON. Body-bearing requests require `Content-Type: application/json`; other content types receive `415`.
 - All API responses, including errors, carry `Cache-Control: no-store`.
 - Times in responses are UTC ISO 8601 strings. Expiry is evaluated using server time.
@@ -18,9 +18,9 @@ This document translates the backend requirements in `PRD.md` into an API agreem
 
 | Action | Endpoint | Success |
 | --- | --- | --- |
-| Create | `POST /v1/secrets` | `201` with reference, deletion token, and expiry |
-| Consume | `POST /v1/secrets/{id}/consume` | `200` with the encrypted envelope |
-| Delete | `POST /v1/secrets/{id}/delete` | `204` with no body |
+| Create | `POST /secrets` | `201` with reference, deletion token, and expiry |
+| Consume | `POST /secrets/{id}/consume` | `200` with the encrypted envelope |
+| Delete | `POST /secrets/{id}/delete` | `204` with no body |
 | Liveness | `GET /health` | `200` with service status; already implemented |
 
 There is no endpoint to list secrets, inspect their availability, recover deletion tokens, or retrieve content without consuming it. The backend does not serve share or delete confirmation pages.
@@ -51,7 +51,7 @@ These limits apply to bytes, not character counts. Encrypting malformed data can
 
 ## Create a secret
 
-`POST /v1/secrets`
+`POST /secrets`
 
 ```json
 {
@@ -84,7 +84,7 @@ Creation is not idempotent in version 1. Retrying after an uncertain response ca
 
 ## Consume a secret
 
-`POST /v1/secrets/{id}/consume`, with no request body and no deletion token.
+`POST /secrets/{id}/consume`, with no request body and no deletion token.
 
 Success: `200 OK`.
 
@@ -115,7 +115,7 @@ No automatic retry or response replay is permitted for consumption. A lost respo
 
 ## Delete a secret
 
-`POST /v1/secrets/{id}/delete`
+`POST /secrets/{id}/delete`
 
 ```json
 {

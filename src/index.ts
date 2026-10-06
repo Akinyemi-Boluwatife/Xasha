@@ -28,14 +28,16 @@ app.onError((error, c) => {
   return c.json({ error: { code: 'INTERNAL_ERROR', message: 'An unexpected error occurred.' } }, 500)
 })
 
-app.use('/v1/*', browserPolicy)
-app.use('/v1/*', async (c, next) => {
-  // Fail closed for missing or invalid configuration; health remains available.
-  if (c.env.SERVICE_MODE !== 'active') {
-    throw new ApiError(503, 'SERVICE_UNAVAILABLE', 'The service is temporarily unavailable.')
-  }
-  await next()
-})
+for (const path of ['/secrets', '/secrets/*']) {
+  app.use(path, browserPolicy)
+  app.use(path, async (c, next) => {
+    // Fail closed for missing or invalid configuration; health remains available.
+    if (c.env.SERVICE_MODE !== 'active') {
+      throw new ApiError(503, 'SERVICE_UNAVAILABLE', 'The service is temporarily unavailable.')
+    }
+    await next()
+  })
+}
 
 const unavailable = { error: { code: 'SECRET_UNAVAILABLE', message: 'This secret is no longer available.' } }
 const deleteUnavailable = { error: {
@@ -44,7 +46,7 @@ const deleteUnavailable = { error: {
 } }
 const validId = (id: string) => /^[A-Za-z0-9_-]{32}$/.test(id)
 
-app.post('/v1/secrets', async (c) => {
+app.post('/secrets', async (c) => {
   // Cloudflare sets this header on incoming requests. Do not use caller-supplied
   // X-Forwarded-For. Missing addresses share one conservative fallback bucket.
   const key = `create:${c.req.header('CF-Connecting-IP') || 'unknown'}`
@@ -82,7 +84,7 @@ app.post('/v1/secrets', async (c) => {
   return c.json({ id, deleteToken, expiresAt: new Date(expiresAt).toISOString() }, 201)
 })
 
-app.post('/v1/secrets/:id/consume', async (c) => {
+app.post('/secrets/:id/consume', async (c) => {
   if ((await readBody(c.req.raw)).length) throw invalid()
   const id = c.req.param('id')
   if (!validId(id)) return c.json(unavailable, 404)
@@ -95,7 +97,7 @@ app.post('/v1/secrets/:id/consume', async (c) => {
   return envelope ? c.json({ envelope }) : c.json(unavailable, 404)
 })
 
-app.post('/v1/secrets/:id/delete', async (c) => {
+app.post('/secrets/:id/delete', async (c) => {
   const body = object(await jsonBody(c.req.raw), ['deleteToken'])
   if (typeof body.deleteToken !== 'string' || body.deleteToken.length !== 43 || decodedLength(body.deleteToken) !== 32) throw invalid()
   const id = c.req.param('id')
@@ -107,7 +109,7 @@ app.post('/v1/secrets/:id/delete', async (c) => {
   return result.results.length ? c.body(null, 204) : c.json(deleteUnavailable, 404)
 })
 
-for (const path of ['/v1/secrets', '/v1/secrets/:id/consume', '/v1/secrets/:id/delete']) {
+for (const path of ['/secrets', '/secrets/:id/consume', '/secrets/:id/delete']) {
   app.options(path, c => { c.header('Allow', 'POST, OPTIONS'); return c.body(null, 204) })
   app.all(path, c => {
     c.header('Allow', 'POST, OPTIONS')

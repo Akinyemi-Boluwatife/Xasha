@@ -10,7 +10,7 @@ This is an operator procedure supported by maintenance mode, not automatic resto
 
 ## Maintenance mode
 
-Set `SERVICE_MODE` in `cloudflare.config.ts` to `maintenance`, then run `npm run deploy` using the authenticated `cf` environment. Missing or invalid values also block secret operations.
+Set the affected environment's `serviceMode` in `config/environments.ts` to `maintenance`, then run `npm run deploy:production` or `npm run deploy:dev` using the authenticated `cf` environment. This supplies `SERVICE_MODE` to the Worker. Missing or invalid values also block secret operations. The default `npm run deploy` targets development; it does not change production.
 
 - Secret creation, consumption, and deletion return `503` for otherwise allowed requests before touching D1 or the rate limiter.
 - Scheduled expiry cleanup is paused.
@@ -23,9 +23,9 @@ Verify a synthetic secret request returns `503`. Allow the deployment to finish 
 
 1. Enable and verify maintenance mode. Do not restore the attached database while public requests can reach it.
 2. Create a new empty database with `cf d1 create --name <new-database-name> --read-replication-mode disabled`. Choose a distinct name and record the returned database ID.
-3. Apply the project's migrations to that new ID with `cf d1 migrations apply <new-database-id> --dir migrations`.
+3. Apply the project's migrations to that new ID with `cf d1 migrations apply <new-database-id> --mode <production-or-development> --dir migrations`.
 4. Verify the new database contains no secret rows and its `storage_usage` count and byte total are both zero. Use aggregate queries only; do not export ciphertext or credentials into logs.
-5. Update the `DB` ID/name in `cloudflare.config.ts` and the database ID in the `db:migrate` npm script. Keep maintenance mode enabled while deploying the new binding.
+5. Update the affected environment's `databaseId` and `databaseName` in `config/environments.ts`. Migration scripts use this same database ID. Keep maintenance mode enabled while deploying the new binding with the matching environment's deploy command.
 6. Verify maintenance still blocks the API and confirm the deployment points at the new database. Do not reconnect historical databases or import their secret rows.
 7. Set `SERVICE_MODE` back to `active` and deploy. Run `node tests/live-smoke.mjs <service-url>` to verify creation, one-time consumption, and deletion with synthetic content.
 8. Check an old synthetic link returns the normal unavailable outcome. Confirm the cleanup schedule and configured limits remain deployed. Record the recovery event without links, secret IDs, keys, or token values.

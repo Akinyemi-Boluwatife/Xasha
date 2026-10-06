@@ -2,9 +2,29 @@
 
 Backend-only one-time secret sharing service built with Hono on Cloudflare Workers and D1.
 
+Production is deployed at [xasha.boluakinyemi500.workers.dev](https://xasha.boluakinyemi500.workers.dev/health). The service has no accounts or login. This repository provides the API; share-link pages, encryption, and reveal controls belong to the future browser client.
+
+## How Xasha works
+
+1. The client encrypts text before sending it to the API. The backend receives an encrypted envelope, never the plaintext or decryption key.
+2. Xasha stores the envelope and returns a random secret reference, expiry, and a separate private deletion token. The token is returned once; only its hash is stored.
+3. The client constructs a share link with the decryption key in the URL fragment. Opening a link does not retrieve content; an explicit consume request retrieves and atomically removes the envelope.
+4. Only one request can consume a secret. Expired, consumed, deleted, and invalid references receive the same unavailable response.
+5. The private deletion token can delete an available secret. If deletion and consumption race, the first successful operation wins.
+
+Consumption is final even if delivery or client decryption fails. One-time retrieval does not prevent a recipient from copying or saving the revealed text. Provider recovery history can retain deleted records; see the [recovery runbook](docs/recovery.md).
+
+| Product setting | Value |
+| --- | --- |
+| Content | Text encrypted by the client |
+| Text allowance | 32 KiB of UTF-8 text; client enforces plaintext size |
+| Default expiry | 24 hours |
+| Expiry choices | 1 hour, 24 hours, or 7 days |
+| Encryption envelope | AES-256-GCM, with a fresh client-generated key and IV |
+
 ## Development
 
-Use Node.js 22 or newer and npm. Run commands inside WSL, where the authenticated `cf` CLI is installed.
+Use Node.js 22.18 or newer and npm. Run commands inside WSL, where the authenticated `cf` CLI is installed.
 
 ```sh
 npm ci
@@ -15,17 +35,51 @@ npm run build
 
 `GET /health` returns `{ "status": "ok", "service": "xasha" }`. This is a liveness endpoint; it does not query D1.
 
-`cloudflare.config.ts` configures the development Worker `xasha-dev` and the `DB` binding to the development D1 database. Local development simulates D1; the remote database is used by deployed Workers. The Vite configuration bundles backend code only.
+`cloudflare.config.ts` selects settings from `config/environments.ts` using the explicit CLI mode. Local development simulates D1; the remote database is used by deployed Workers. The Vite configuration bundles backend code only.
 
 ```sh
 npm run deploy
 ```
 
-This deploys the development Worker. Production resources are not configured.
+This deploys the development Worker. The default build, deploy, and migration commands target development. Use the npm scripts to select the intended environment explicitly.
+
+## Hosting
+
+Both environments use Cloudflare Workers and separate D1 databases, with no custom domain.
+
+| Environment | API URL | D1 database | Rate-limit namespace |
+| --- | --- | --- | --- |
+| Development | https://xasha-dev.boluakinyemi500.workers.dev | xasha-dev | 736201 |
+| Production | https://xasha.boluakinyemi500.workers.dev | xasha-production | 736202 |
+
+`GET /health` is available in both environments. No custom domain or frontend origin is configured.
+
+To migrate and deploy production:
+
+```sh
+npm run typecheck
+npm test
+npm run db:migrate:production
+npm run deploy:production
+node tests/live-smoke.mjs https://xasha.boluakinyemi500.workers.dev
+```
+
+The live smoke test creates disposable synthetic secrets and verifies retrieval and deletion. It consumes those secrets. `npm run build:production` builds production without deploying.
+
+Worker request logging, persisted traces, Logpush, and preview URLs are disabled in the project configuration. Application code does not log secret payloads, keys, tokens, or complete links. Cloudflare's platform retention, including D1 recovery history, is described in the recovery runbook.
 
 ## Secret API
 
 Creation, atomic one-time consumption, and token-authorized deletion are implemented; see [the API contract](docs/api-contract.md). Consumed or deleted rows are removed immediately. Expiry is enforced during each mutation even before cleanup.
+
+| Method | Route | Purpose |
+| --- | --- | --- |
+| `GET` | `/health` | Check service liveness |
+| `POST` | `/secrets` | Store an encrypted envelope and return its reference, deletion token, and expiry |
+| `POST` | `/secrets/{id}/consume` | Retrieve and consume an available envelope atomically |
+| `POST` | `/secrets/{id}/delete` | Delete using the private token supplied in the JSON body |
+
+Secret routes have no version prefix. Responses use `Cache-Control: no-store`. There is no endpoint to list secrets or retrieve content without consuming it. The [API contract](docs/api-contract.md) describes JSON formats, envelope validation, status codes, and integration requirements.
 
 Apply versioned migrations before deploying against a new database:
 
@@ -33,7 +87,7 @@ Apply versioned migrations before deploying against a new database:
 npm run db:migrate
 ```
 
-This targets the remote **development** database. To exercise migrations locally with the CLI, use `cf d1 migrations apply 6da3fc49-e7da-467e-a86a-ab041b5cec71 --local`. Integration tests use their own isolated, ephemeral D1 database.
+This targets the remote **development** database. To exercise migrations locally, use `npm run db:migrate:dev -- --local`. Integration tests use their own isolated, ephemeral D1 database.
 
 ```sh
 npm test
@@ -45,17 +99,48 @@ Browser-origin controls and maintenance mode are implemented. Recovery uses the 
 
 ## Browser access
 
-`ALLOWED_ORIGINS` is a JSON array of exact website origins in `cloudflare.config.ts`. It defaults to `[]`, allowing same-origin browser requests and clients without an `Origin` header, such as command-line tools. No frontend address has been chosen yet.
+`allowedOrigins` in `config/environments.ts` supplies the `ALLOWED_ORIGINS` JSON array for each environment. It defaults to `[]`, allowing same-origin browser requests and clients without an `Origin` header, such as command-line tools. No frontend address has been chosen yet.
 
 When a frontend address is known, configure its exact origin, for example `["https://app.example"]`, then rebuild and deploy. An origin contains a scheme, hostname, and optional port, with no path or trailing slash. Wildcards and `null` origins are not accepted. Configuration mistakes fail closed with `503`.
 
-Disallowed browser origins receive `403` before any secret mutation. Allowed preflights permit `POST` and `Content-Type`, expose `Retry-After`, and do not use cookies or credentials. CORS applies to `/v1/*`; it is a browser integration policy, not authentication. Anyone with a secret reference can still make a direct API request; decryption requires the complete share link. Vite's automatic CORS is disabled so local development uses the same policy.
+Disallowed browser origins receive `403` before any secret mutation. Allowed preflights permit `POST` and `Content-Type`, expose `Retry-After`, and do not use cookies or credentials. CORS applies to `/secrets` and `/secrets/*`; it is a browser integration policy, not authentication. Anyone with a secret reference can still make a direct API request; decryption requires the complete share link. Vite's automatic CORS is disabled so local development uses the same policy.
 
-`SERVICE_MODE` defaults to `active`. Set it to `maintenance` and deploy to block secret operations and pause scheduled cleanup while keeping health available. Follow [the recovery runbook](docs/recovery.md) before any database recovery action.
+`serviceMode` in `config/environments.ts` supplies `SERVICE_MODE` and defaults to `active`. Set the affected environment to `maintenance` and deploy with its matching command to block secret operations and pause scheduled cleanup while keeping health available. Follow [the recovery runbook](docs/recovery.md) before any database recovery action.
+
+## Commands
+
+| Command | Action |
+| --- | --- |
+| `npm run dev` | Start the local development Worker |
+| `npm run typecheck` | Check TypeScript |
+| `npm test` | Build and run isolated Workers/D1 integration tests |
+| `npm run build` | Build development |
+| `npm run build:production` | Build production |
+| `npm run db:migrate:dev` | Apply migrations to remote development D1 |
+| `npm run db:migrate:dev -- --local` | Apply migrations to local development D1 |
+| `npm run db:migrate:production` | Apply migrations to production D1 |
+| `npm run deploy:dev` | Deploy development |
+| `npm run deploy:production` | Deploy production |
+
+`npm run deploy` and `npm run db:migrate` are development aliases. Production commands are explicit.
+
+## Project layout
+
+| Path | Responsibility |
+| --- | --- |
+| `src/index.ts` | Hono routes, request limits, atomic D1 operations, and Worker handlers |
+| `src/protocol.ts` | Envelope validation, expiry choices, identifiers, and token hashing |
+| `src/browser-policy.ts` | Browser-origin controls |
+| `src/cleanup.ts` | Bounded expiry cleanup |
+| `config/environments.ts` | Separate development and production resources, browser origins, and service mode |
+| `cloudflare.config.ts` | Worker bindings, limits, privacy settings, and cleanup schedule |
+| `migrations/` | Versioned D1 schema changes |
+| `scripts/migrate.mjs` | Environment-specific migration command |
+| `tests/` | Integration tests and opt-in live smoke check |
 
 ## Operational safeguards
 
-Development defaults in `cloudflare.config.ts`:
+Defaults for both environments in `cloudflare.config.ts`:
 
 | Setting | Value |
 | --- | --- |
@@ -66,13 +151,15 @@ Development defaults in `cloudflare.config.ts`:
 
 These are initial operational defaults, configurable separately from the agreed product size and expiry settings. Rebuild and deploy after changing them.
 
-Creation attempts, including invalid requests, count toward throttling. Excess attempts return `429` with `Retry-After: 60`; retrieval and deletion stay available. `CF-Connecting-IP` supplies the bucket key on Cloudflare; missing addresses share a fallback bucket. Shared networks share a bucket. No IP addresses are stored in D1 or application logs. Cloudflare's limiter is approximate and local to each Cloudflare location, not an exact global quota. Namespace `736201` is reserved here for Xasha's development creation limiter; do not reuse it for unrelated bindings.
+Creation attempts, including invalid requests, count toward throttling. Excess attempts return `429` with `Retry-After: 60`; retrieval and deletion stay available. `CF-Connecting-IP` supplies the bucket key on Cloudflare; missing addresses share a fallback bucket. Shared networks share a bucket. No IP addresses are stored in D1 or application logs. Cloudflare's limiter is approximate and local to each Cloudflare location, not an exact global quota. Namespaces `736201` and `736202` are reserved for Xasha's development and production creation limiters; do not reuse them for unrelated bindings.
 
 The storage budget counts encoded ciphertext plus 128 bytes of fixed envelope, reference, hash, and timestamp data per record. It includes expired records awaiting cleanup. It does not measure physical SQLite pages, indexes, database metadata, or Cloudflare recovery copies. Count and payload caps are enforced together in the insertion statement using transactional D1 counters. Capacity exhaustion returns `503` without creating a secret; retrieval, deletion, and cleanup free capacity atomically. Migration `0002` initializes the counters from existing records.
 
 Cleanup deletes expired rows in batches of 500 and leaves available secrets untouched. Backlogs beyond one run's bound are handled by later runs. Retrieval enforces expiry regardless of cleanup progress. Cleanup failure marks the scheduled execution failed using a fixed error without sensitive database details.
 
 References: [Cloudflare rate-limit behavior](https://developers.cloudflare.com/workers/runtime-apis/bindings/rate-limit/) and [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/).
+
+Environment selection follows [cf project modes](https://developers.cloudflare.com/cf/projects/) and [programmatic configuration](https://developers.cloudflare.com/cf/projects/cloudflare-config/).
 
 ## Documentation
 
