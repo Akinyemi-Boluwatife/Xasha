@@ -68,20 +68,28 @@ The live smoke test creates disposable synthetic secrets and verifies retrieval 
 
 Worker request logging, persisted traces, Logpush, and preview URLs are disabled in the project configuration. Application code does not log secret payloads, keys, tokens, or complete links. Cloudflare's platform retention, including D1 recovery history, is described in the recovery runbook.
 
-## GitHub Actions
+## Cloudflare Workers Builds
 
-[Repository workflows](https://github.com/Akinyemi-Boluwatife/Xasha/actions) provide:
+Production uses Cloudflare Workers Builds connected to [the GitHub repository](https://github.com/Akinyemi-Boluwatife/Xasha). Pushes to `main` run checks and automatically deploy production after those checks pass. Preview builds are disabled; other branches do not deploy through this connection. GitHub Actions is not required.
 
-- **CI:** runs on pushes and pull requests. Installs locked dependencies, checks TypeScript, runs integration tests, builds production, and validates deployment with a dry run. No Cloudflare credentials are required and no remote resources are changed.
-- **Deploy production:** runs manually from the Actions tab, selecting `main`. Repeats CI checks for that commit, builds production, applies D1 migrations, deploys the validated build, and checks the live API using disposable synthetic secrets. Runs on other branches skip deployment. Pushes do not automatically deploy.
+Build settings are managed in Cloudflare under **Workers & Pages → xasha → Settings → Build**, or through `cf builds`. The repository defines the commands; the repository connection, branch filters, and deployment credentials are stored in Cloudflare.
 
-Both workflows use Node.js 24 and the project's installed `cf` CLI. Production deployments are serialized; a running deployment is not cancelled by another request. The workflow uses GitHub's `production` environment, where reviewers or branch restrictions can be configured separately. The workflow itself does not configure those protection rules or branch protection.
+| Build setting | Value |
+| --- | --- |
+| Production branch | `main` |
+| Root directory | `/` |
+| Build command | `npm run ci:check` |
+| Deploy command | `npm run ci:deploy` |
+| Node.js | `24.18.0`, selected by `.node-version` |
+| Preview builds | Disabled |
 
-Before the first GitHub deployment, create a Cloudflare API token restricted to Xasha's account with the permissions needed to deploy Workers, update Cron Triggers, and apply D1 migrations. Store it as `CLOUDFLARE_API_TOKEN` in the GitHub `production` environment or repository secrets. Do not paste the token into source files or workflow inputs. The account ID is already configured in `cloudflare.config.ts`; CI needs no separate account secret. Local interactive login is not used by GitHub runners.
+`ci:check` checks TypeScript, runs isolated integration tests, builds production, and validates the build with a deployment dry run. `ci:deploy` applies production D1 migrations, uploads that prebuilt production bundle using `cf`, and verifies the live API with disposable synthetic secrets. A failed check or migration stops deployment. A failed live check marks the build failed after deployment; it does not roll back code or database changes. Use the [recovery runbook](docs/recovery.md) for incidents.
 
-Deployment credentials are passed only to credential validation, migration, and upload steps. A failed migration stops deployment. A failed live check marks the workflow failed; it does not roll back code or database changes. Use the [recovery runbook](docs/recovery.md) for incidents.
+Workers Builds uses its configured Cloudflare build token. That token must permit Worker deployment and D1 migrations in Xasha's account. No Cloudflare token is stored in GitHub Actions. Build credentials are accessible to build scripts, so only trusted changes should be merged to `main`.
 
-References: [Cloudflare CLI in CI](https://developers.cloudflare.com/cf/ci/) and [GitHub workflow triggers](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+Inspect and retry builds in the Cloudflare dashboard, or use `cf builds list`, `cf builds get`, `cf builds logs get`, and `cf builds create`. See their `--help` output for required Worker tags, trigger IDs, and build IDs. Before maintenance or database recovery, pause automatic builds so a new push cannot reactivate production unexpectedly.
+
+References: [Workers Builds configuration](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/), [build image and Node selection](https://developers.cloudflare.com/workers/ci-cd/builds/build-image/), and [Cloudflare CLI in CI](https://developers.cloudflare.com/cf/ci/).
 
 ## Secret API
 
@@ -136,6 +144,8 @@ Disallowed browser origins receive `403` before any secret mutation. Allowed pre
 | `npm run db:migrate:production` | Apply migrations to production D1 |
 | `npm run deploy:dev` | Deploy development |
 | `npm run deploy:production` | Deploy production |
+| `npm run ci:check` | Run the Workers Builds checks and validate production without uploading |
+| `npm run ci:deploy` | Migrate, deploy the prebuilt production bundle, and verify the live API |
 
 `npm run deploy` and `npm run db:migrate` are development aliases. Production commands are explicit.
 
