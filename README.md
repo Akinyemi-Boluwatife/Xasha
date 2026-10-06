@@ -68,6 +68,21 @@ The live smoke test creates disposable synthetic secrets and verifies retrieval 
 
 Worker request logging, persisted traces, Logpush, and preview URLs are disabled in the project configuration. Application code does not log secret payloads, keys, tokens, or complete links. Cloudflare's platform retention, including D1 recovery history, is described in the recovery runbook.
 
+## GitHub Actions
+
+[Repository workflows](https://github.com/Akinyemi-Boluwatife/Xasha/actions) provide:
+
+- **CI:** runs on pushes and pull requests. Installs locked dependencies, checks TypeScript, runs integration tests, builds production, and validates deployment with a dry run. No Cloudflare credentials are required and no remote resources are changed.
+- **Deploy production:** runs manually from the Actions tab, selecting `main`. Repeats CI checks for that commit, builds production, applies D1 migrations, deploys the validated build, and checks the live API using disposable synthetic secrets. Runs on other branches skip deployment. Pushes do not automatically deploy.
+
+Both workflows use Node.js 24 and the project's installed `cf` CLI. Production deployments are serialized; a running deployment is not cancelled by another request. The workflow uses GitHub's `production` environment, where reviewers or branch restrictions can be configured separately. The workflow itself does not configure those protection rules or branch protection.
+
+Before the first GitHub deployment, create a Cloudflare API token restricted to Xasha's account with the permissions needed to deploy Workers, update Cron Triggers, and apply D1 migrations. Store it as `CLOUDFLARE_API_TOKEN` in the GitHub `production` environment or repository secrets. Do not paste the token into source files or workflow inputs. The account ID is already configured in `cloudflare.config.ts`; CI needs no separate account secret. Local interactive login is not used by GitHub runners.
+
+Deployment credentials are passed only to credential validation, migration, and upload steps. A failed migration stops deployment. A failed live check marks the workflow failed; it does not roll back code or database changes. Use the [recovery runbook](docs/recovery.md) for incidents.
+
+References: [Cloudflare CLI in CI](https://developers.cloudflare.com/cf/ci/) and [GitHub workflow triggers](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow).
+
 ## Secret API
 
 Creation, atomic one-time consumption, and token-authorized deletion are implemented; see [the API contract](docs/api-contract.md). Consumed or deleted rows are removed immediately. Expiry is enforced during each mutation even before cleanup.
