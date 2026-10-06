@@ -1,0 +1,29 @@
+{
+  "name": "xasha",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "cf dev",
+    "build": "cf build",
+    "deploy": "cf deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "npm run build && node --test tests/*.test.mjs",
+    "db:migrate": "cf d1 migrations apply 6da3fc49-e7da-467e-a86a-ab041b5cec71"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "private": true,
+  "dependencies": {
+    "hono": "^4.13.13"
+  },
+  "devDependencies": {
+    "@cloudflare/vite-plugin": "^2.0.0-beta.sha-52b0dc0e9",
+    "@cloudflare/workers-types": "^5.20261006.1",
+    "cf": "^1.0.0-beta.12",
+    "miniflare": "^5.20260930.0-alpha",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.3"
+  },
+  "type": "module"
+}
