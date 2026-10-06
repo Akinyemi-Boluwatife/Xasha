@@ -51,7 +51,7 @@ The monitor and its state both run on Cloudflare. A wider Cloudflare outage may 
 
 ## Deployment
 
-Workers Builds checks both API and monitor bundles. It migrates both databases, deploys the validated production API bundle, checks the live API, then builds and deploys the monitor. Manual monitor deployment uses:
+API and monitor use separate Workers Builds connections on the same repository and `main` branch. The API connection uses `ci:check` and `ci:deploy`; the monitor connection uses `ci:monitor:check` and `ci:monitor:deploy`. The monitor runs shared tests, builds and validates its own bundle, migrates its own database, then deploys that prebuilt monitor bundle. Each connection deploys only its associated Worker, following Cloudflare's Worker name matching requirement. Builds can run independently; a failed monitor build does not roll back the API. Manual monitor deployment uses:
 
 ```sh
 npm run db:migrate:monitor
@@ -65,5 +65,6 @@ The databases are pre-created account resources. Neither command creates or chan
 - [Hono on Cloudflare Workers](https://hono.dev/docs/getting-started/cloudflare-workers)
 - [Cron Triggers](https://developers.cloudflare.com/workers/configuration/cron-triggers/)
 - [Programmatic cf configuration](https://developers.cloudflare.com/cf/projects/cloudflare-config/)
+- [Workers Builds advanced setups](https://developers.cloudflare.com/workers/ci-cd/builds/advanced-setups/)
 - [Workers metrics](https://developers.cloudflare.com/workers/observability/metrics-and-analytics/)
 - [D1 metrics](https://developers.cloudflare.com/d1/observability/metrics-analytics/)

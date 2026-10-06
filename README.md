@@ -83,7 +83,7 @@ Build settings are managed in Cloudflare under **Workers & Pages → xasha → S
 | Node.js | `24.18.0`, selected by `.node-version` |
 | Preview builds | Disabled |
 
-`ci:check` checks TypeScript, runs isolated integration tests, and builds and validates both the monitor and production API with deployment dry runs. `ci:deploy` applies production and monitor D1 migrations, uploads the prebuilt production API bundle using `cf`, verifies the live API with disposable synthetic secrets, then builds and deploys the monitor. A failed check or migration stops deployment. A failed live check or monitor deployment marks the build failed after the API deployment; it does not roll back code or database changes. Use the [recovery runbook](docs/recovery.md) for incidents.
+`ci:check` checks TypeScript, runs isolated integration tests, and builds and validates both the monitor and production API with deployment dry runs. `ci:deploy` applies production D1 migrations, uploads the prebuilt production API bundle using `cf`, and verifies the live API with disposable synthetic secrets. The monitor has a separate Workers Builds connection on the same repository, using `ci:monitor:check` and `ci:monitor:deploy`. Its build validates and deploys only the monitor bundle after running the shared tests. A failed check or migration stops that Worker's deployment. A failed live check marks the API build failed after deployment; it does not roll back code or database changes. Use the [recovery runbook](docs/recovery.md) for incidents.
 
 Workers Builds uses its configured Cloudflare build token. That token must permit Worker deployment and D1 migrations in Xasha's account. No Cloudflare token is stored in GitHub Actions. Build credentials are accessible to build scripts, so only trusted changes should be merged to `main`.
 
@@ -156,6 +156,8 @@ Disallowed browser origins receive `403` before any secret mutation. Allowed pre
 | `npm run deploy:monitor` | Deploy the scheduled monitoring Worker |
 | `npm run ci:check` | Run the Workers Builds checks and validate production without uploading |
 | `npm run ci:deploy` | Migrate, deploy the prebuilt production bundle, and verify the live API |
+| `npm run ci:monitor:check` | Run shared tests and validate the monitoring bundle |
+| `npm run ci:monitor:deploy` | Migrate monitoring state and deploy its prebuilt bundle |
 
 `npm run deploy` and `npm run db:migrate` are development aliases. Production commands are explicit.
 

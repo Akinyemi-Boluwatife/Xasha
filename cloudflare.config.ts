@@ -27,7 +27,7 @@ export default defineConfig(({ mode }) => {
     }),
   }
   if (mode !== undefined && mode !== 'development' && mode !== 'production') {
-    throw new Error('Select development or production mode.')
+    throw new Error('Select development, production, or monitor mode.')
   }
   const environment = environments[mode ?? 'development']
   return {

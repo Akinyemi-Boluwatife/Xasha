@@ -10,7 +10,7 @@ This is an operator procedure supported by maintenance mode, not automatic resto
 
 ## Maintenance mode
 
-Pause the production Workers Builds connection before recovery so a new push or queued build cannot overwrite maintenance mode or switch database bindings. Cancel any queued or running production builds and verify they have stopped. Resume automatic builds only after the recovered configuration is committed to `main` and verified. The build connection is managed separately from Worker runtime configuration.
+Pause both the API and monitor Workers Builds connections before recovery so a new push or queued build cannot overwrite maintenance or monitoring pause settings. Cancel any queued or running builds for those Workers and verify they have stopped. Set the monitor's mode to `paused` in `config/monitor.ts` and deploy it with `npm run deploy:monitor` to suppress readiness polling during planned downtime. Resume automatic builds only after the recovered configuration is committed to `main` and verified. The build connections are managed separately from Worker runtime configuration. See [monitoring](monitoring.md).
 
 Set the affected environment's `serviceMode` in `config/environments.ts` to `maintenance`, then run `npm run deploy:production` or `npm run deploy:dev` using the authenticated `cf` environment. This supplies `SERVICE_MODE` to the Worker. Missing or invalid values also block secret operations. The default `npm run deploy` targets development; it does not change production.
 
