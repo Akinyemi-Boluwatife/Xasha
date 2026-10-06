@@ -4,7 +4,7 @@
 
 `GET /health` confirms that the API Worker responds. `GET /ready` also checks that service mode is active, configured limits are valid, D1 responds, the secrets table exists, and the singleton storage counters are readable. Ready returns `200` with `{ "status": "ready", "service": "xasha" }`; otherwise it returns `503` with `{ "status": "unavailable", "service": "xasha" }`. Both use `Cache-Control: no-store`.
 
-Readiness checks read schema and aggregate metadata only. They never create, retrieve, delete, or inspect secret content. The public response exposes no counts or database diagnostics. It is a read-only dependency check, not proof that every write path, quota, or encryption flow works. Deployments also run the synthetic lifecycle smoke test.
+Readiness checks read schema and aggregate metadata only. They never create, retrieve, delete, or inspect secret content. The public response exposes no counts or database diagnostics. It is a read-only dependency check, not proof that every write path, quota, or encryption flow works. Deployments also run the synthetic lifecycle smoke test, which waits up to 60 seconds for readiness during propagation. Only the read-only readiness probe is retried; secret consumption is never retried.
 
 ## Scheduled monitor
 

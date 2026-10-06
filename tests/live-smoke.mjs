@@ -1,11 +1,26 @@
 // Explicit opt-in: creates and consumes synthetic secrets on the given service.
 import assert from 'node:assert/strict'
+import { setTimeout as delay } from 'node:timers/promises'
 
 const base = process.argv[2]
 if (!base) throw new Error('Usage: node tests/live-smoke.mjs <service-url>')
-const readiness = await fetch(new URL('/ready', base), { signal: AbortSignal.timeout(15000), cache: 'no-store' })
-assert.equal(readiness.status, 200)
-assert.deepEqual(await readiness.json(), { status: 'ready', service: 'xasha' })
+// Safe GET probes can wait for deployment propagation; consumption is never retried.
+const deadline = Date.now() + 60000
+let isReady = false
+while (Date.now() < deadline) {
+  try {
+    const readiness = await fetch(new URL('/ready', base), {
+      signal: AbortSignal.timeout(Math.max(1, Math.min(5000, deadline - Date.now()))), cache: 'no-store',
+    })
+    if (readiness.status === 200) {
+      const body = await readiness.json()
+      isReady = body?.status === 'ready' && body?.service === 'xasha'
+    } else await readiness.body?.cancel()
+    if (isReady) break
+  } catch { /* Network or rollout delay; repeat only this read-only probe. */ }
+  await delay(Math.max(0, Math.min(5000, deadline - Date.now())))
+}
+assert.ok(isReady, 'Production readiness did not pass within 60 seconds.')
 const send = (path, body) => fetch(new URL(path, base), {
   method: 'POST',
   ...(body === undefined ? {} : { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }),
