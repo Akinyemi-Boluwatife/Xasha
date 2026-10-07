@@ -15,6 +15,7 @@
 - Always follow the official Hono best practices at https://hono.dev/docs/guides/best-practices and the guidance relevant to Cloudflare Workers at https://hono.dev/docs/getting-started/cloudflare-workers.
 - Verify APIs and patterns against the installed Hono version. If the local snapshot is outdated, consult the current official documentation and refresh it from https://hono.dev/llms-full.txt when appropriate.
 - Cite relevant official documentation when handing off architectural decisions.
+- API schemas and route definitions generate `docs/openapi.json`. After changing them, run `npm run openapi:generate` and commit the generated snapshot; do not edit the snapshot manually. Automatic builds check for drift.
 
 ## Project scope
 

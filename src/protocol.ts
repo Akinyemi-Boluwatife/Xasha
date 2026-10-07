@@ -37,16 +37,6 @@ export function decodedLength(value: unknown): number {
   return bytes.length;
 }
 
-export function object(
-  value: unknown,
-  allowed: string[],
-): Record<string, unknown> {
-  if (!value || typeof value !== "object" || Array.isArray(value))
-    throw invalid();
-  if (Object.keys(value).some((key) => !allowed.includes(key))) throw invalid();
-  return value as Record<string, unknown>;
-}
-
 export async function readBody(request: Request): Promise<Uint8Array> {
   const reader = request.body?.getReader();
   if (!reader) return new Uint8Array();

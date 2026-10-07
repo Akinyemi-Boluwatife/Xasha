@@ -10,4 +10,4 @@ export type Bindings = {
 };
 
 export type AppEnv = { Bindings: Bindings };
-export type Envelope = { version: number; iv: string; ciphertext: string };
+export type Envelope = import("zod").infer<typeof import("./secrets/schemas").envelopeSchema>;

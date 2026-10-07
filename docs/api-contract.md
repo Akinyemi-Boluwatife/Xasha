@@ -2,7 +2,7 @@
 
 Status: Secret endpoints, operational safeguards, public browser access without credentials, and maintenance mode implemented. Envelope version 1 is independent of route naming; routes have no version prefix.
 
-For integration examples and self-hosting, see [the developer guide](developers.md). Machine-readable endpoint schemas are in [OpenAPI](openapi.json).
+For integration examples and self-hosting, see [the developer guide](developers.md). Machine-readable endpoint schemas are generated from `@hono/zod-openapi` route definitions: [live specification](https://api.xasha.site/openapi.json) and [committed snapshot](openapi.json). The snapshot is generated with `npm run openapi:generate`; automatic builds reject schema/snapshot drift.
 
 This document translates the backend requirements in `PRD.md` into an API agreement. The protocol choices below are implemented. The 32 KiB text limit, 24-hour default expiry, and expiry choices of 1 hour, 24 hours, and 7 days are agreed.
 

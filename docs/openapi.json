@@ -3,7 +3,7 @@
   "info": {
     "title": "Xasha API",
     "version": "1.0.0",
-    "description": "Account-free, one-time encrypted secret storage. API/protocol version metadata does not add a URL version prefix. No plaintext or keys in requests; no automatic consume retries. Hosted limits are shared and availability is best effort. Hosted secret routes allow any browser origin with wildcard CORS and no credentials; use credentials: omit. Preflights accept POST and Content-Type only. Health/readiness do not provide public browser CORS.",
+    "description": "Account-free, one-time encrypted text sharing. Never send plaintext or encryption keys. Never automatically retry consumption. Public secret routes allow any browser origin without credentials. Opening a client share page must not consume a secret.",
     "license": {
       "name": "ISC",
       "identifier": "ISC"
@@ -19,64 +19,302 @@
   "tags": [
     {
       "name": "Secrets",
-      "description": "Create, consume and delete encrypted envelopes."
+      "description": "Create, retrieve once, and privately delete encrypted text."
     },
     {
-      "name": "Status",
-      "description": "Read-only operational checks."
+      "name": "Status"
     }
   ],
+  "components": {
+    "schemas": {
+      "CreateResponse": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "$ref": "#/components/schemas/SecretId"
+          },
+          "deleteToken": {
+            "$ref": "#/components/schemas/DeleteToken"
+          },
+          "expiresAt": {
+            "type": "string",
+            "format": "date-time"
+          }
+        },
+        "required": [
+          "id",
+          "deleteToken",
+          "expiresAt"
+        ],
+        "additionalProperties": false
+      },
+      "SecretId": {
+        "type": "string",
+        "minLength": 32,
+        "maxLength": 32,
+        "pattern": "^[A-Za-z0-9_-]+$"
+      },
+      "DeleteToken": {
+        "type": "string",
+        "minLength": 43,
+        "maxLength": 43,
+        "pattern": "^[A-Za-z0-9_-]+$",
+        "description": "Private deletion credential, sent only in the JSON body."
+      },
+      "Error": {
+        "type": "object",
+        "properties": {
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": {
+                "type": "string"
+              },
+              "message": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "code",
+              "message"
+            ],
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "error"
+        ],
+        "additionalProperties": false
+      },
+      "CreateRequest": {
+        "type": "object",
+        "properties": {
+          "envelope": {
+            "$ref": "#/components/schemas/Envelope"
+          },
+          "expiresIn": {
+            "anyOf": [
+              {
+                "type": "number",
+                "enum": [
+                  3600
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  86400
+                ]
+              },
+              {
+                "type": "number",
+                "enum": [
+                  604800
+                ]
+              }
+            ],
+            "default": 86400
+          }
+        },
+        "required": [
+          "envelope"
+        ],
+        "additionalProperties": false
+      },
+      "Envelope": {
+        "type": "object",
+        "properties": {
+          "version": {
+            "type": "number",
+            "enum": [
+              1
+            ]
+          },
+          "iv": {
+            "type": "string",
+            "minLength": 16,
+            "maxLength": 16,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Canonical, unpadded base64url."
+          },
+          "ciphertext": {
+            "type": "string",
+            "minLength": 23,
+            "maxLength": 43712,
+            "pattern": "^[A-Za-z0-9_-]+$",
+            "description": "Canonical, unpadded base64url."
+          }
+        },
+        "required": [
+          "version",
+          "iv",
+          "ciphertext"
+        ],
+        "additionalProperties": false,
+        "description": "AES-256-GCM ciphertext with appended 128-bit tag; fresh 12-byte IV. No plaintext or encryption key."
+      },
+      "ConsumeResponse": {
+        "type": "object",
+        "properties": {
+          "envelope": {
+            "$ref": "#/components/schemas/Envelope"
+          }
+        },
+        "required": [
+          "envelope"
+        ],
+        "additionalProperties": false
+      },
+      "DeleteRequest": {
+        "type": "object",
+        "properties": {
+          "deleteToken": {
+            "$ref": "#/components/schemas/DeleteToken"
+          }
+        },
+        "required": [
+          "deleteToken"
+        ],
+        "additionalProperties": false
+      },
+      "Health": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ok"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "xasha"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "service"
+        ],
+        "additionalProperties": false
+      },
+      "Ready": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "ready"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "xasha"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "service"
+        ],
+        "additionalProperties": false
+      },
+      "NotReady": {
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "unavailable"
+            ]
+          },
+          "service": {
+            "type": "string",
+            "enum": [
+              "xasha"
+            ]
+          }
+        },
+        "required": [
+          "status",
+          "service"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "parameters": {}
+  },
   "paths": {
     "/secrets": {
       "post": {
         "operationId": "createSecret",
-        "summary": "Store a client-encrypted secret",
-        "description": "Never send plaintext or the decryption key. Creation is not idempotent; an uncertain response may leave an orphaned secret.",
         "tags": [
           "Secrets"
         ],
+        "summary": "Create an encrypted secret",
+        "description": "Encrypt locally. Send only the envelope and expiry; never send plaintext or keys. Creation is not idempotent.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "201": {
-            "description": "Success",
+            "description": "Created. The private deletion token is returned once.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/CreatedSecret"
+                  "$ref": "#/components/schemas/CreateResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "INVALID_REQUEST: malformed JSON, fields, encoding or body.",
+            "description": "INVALID_REQUEST: invalid JSON, fields, or encoding.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -89,142 +327,24 @@
             }
           },
           "403": {
-            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
+            "description": "ORIGIN_NOT_ALLOWED on restricted deployments.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "PAYLOAD_TOO_LARGE: 48 KiB body limit or decoded payload limit exceeded.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "429": {
-            "description": "RATE_LIMITED: creation attempts exceed the location-local IP limit.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Currently 60 seconds. No secret mutation."
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "INTERNAL_ERROR: fixed message with no internal details.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -237,26 +357,32 @@
             }
           },
           "405": {
-            "description": "METHOD_NOT_ALLOWED for unsupported methods on this known route.",
+            "description": "METHOD_NOT_ALLOWED for unsupported methods.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               },
               "Allow": {
                 "schema": {
-                  "type": "string"
-                },
-                "description": "POST, OPTIONS"
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "POST, OPTIONS"
+                  ]
                 }
               }
             },
@@ -267,53 +393,26 @@
                 }
               }
             }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/CreateRequest"
-              }
-            }
-          }
-        }
-      },
-      "options": {
-        "operationId": "preflightCreateSecret",
-        "summary": "Side-effect-free browser preflight",
-        "tags": [
-          "Secrets"
-        ],
-        "responses": {
-          "204": {
-            "description": "No mutation. Allowed preflight permits POST and Content-Type without credentials.",
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE: JSON exceeds 49152 bytes or ciphertext exceeds 32784 decoded bytes.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -326,13 +425,90 @@
             }
           },
           "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "description": "UNSUPPORTED_MEDIA_TYPE: use uncompressed application/json.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: IP budget exhausted before database access. No secret mutation.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "description": "Currently 60 seconds.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message without internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -345,20 +521,145 @@
             }
           },
           "503": {
-            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "description": "SERVICE_UNAVAILABLE: dependency failure, maintenance, invalid configuration, or capacity exhaustion.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Side-effect-free browser preflight",
+        "responses": {
+          "204": {
+            "description": "No mutation or rate-limit budget spent. Allowed preflight permits POST and Content-Type without credentials.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin or requested preflight method/headers are not allowed.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Compressed requests are unsupported.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid configuration or maintenance.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -374,66 +675,73 @@
       }
     },
     "/secrets/{id}/consume": {
-      "parameters": [
-        {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string"
-          },
-          "description": "32-character base64url reference. Malformed references also receive the uniform 404 when the request body is otherwise valid."
-        }
-      ],
       "post": {
         "operationId": "consumeSecret",
-        "summary": "Atomically retrieve and remove a secret",
-        "description": "Send no request body. Call only after an explicit reveal action. NEVER automatically retry: any response loss, server error or decryption failure may occur after irreversible consumption.",
         "tags": [
           "Secrets"
         ],
+        "summary": "Retrieve an encrypted secret once",
+        "description": "Send no request body. Call only on an explicit reveal action. Never automatically retry: delivery or decryption can fail after irreversible consumption.",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/SecretId"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
         "responses": {
           "200": {
-            "description": "Success",
+            "description": "Retrieved and atomically removed.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/ConsumedSecret"
+                  "$ref": "#/components/schemas/ConsumeResponse"
                 }
               }
             }
           },
           "400": {
-            "description": "INVALID_REQUEST: malformed JSON, fields, encoding or body.",
+            "description": "INVALID_REQUEST: invalid JSON, fields, or encoding.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -446,110 +754,24 @@
             }
           },
           "403": {
-            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
+            "description": "ORIGIN_NOT_ALLOWED on restricted deployments.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "PAYLOAD_TOO_LARGE: 48 KiB body limit or decoded payload limit exceeded.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "INTERNAL_ERROR: fixed message with no internal details.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -562,20 +784,24 @@
             }
           },
           "404": {
-            "description": "SECRET_UNAVAILABLE: used, expired, deleted, missing or malformed reference.",
+            "description": "SECRET_UNAVAILABLE: used, expired, deleted, missing, or malformed reference.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -583,37 +809,97 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/Error"
-                },
-                "example": {
-                  "error": {
-                    "code": "SECRET_UNAVAILABLE",
-                    "message": "This secret is no longer available."
-                  }
                 }
               }
             }
           },
           "405": {
-            "description": "METHOD_NOT_ALLOWED for unsupported methods on this known route.",
+            "description": "METHOD_NOT_ALLOWED for unsupported methods.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               },
               "Allow": {
                 "schema": {
-                  "type": "string"
-                },
-                "description": "POST, OPTIONS"
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                  "type": "string",
+                  "enum": [
+                    "POST, OPTIONS"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE: JSON exceeds 49152 bytes or ciphertext exceeds 32784 decoded bytes.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "UNSUPPORTED_MEDIA_TYPE: use uncompressed application/json.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -626,26 +912,90 @@
             }
           },
           "429": {
-            "description": "RATE_LIMITED: shared reveal/deletion IP budget exceeded before parsing or database access.",
+            "description": "RATE_LIMITED: IP budget exhausted before database access. No secret mutation.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               },
               "Retry-After": {
+                "description": "Currently 60 seconds.",
                 "schema": {
                   "type": "string"
-                },
-                "description": "Currently 60 seconds. No secret mutation."
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message without internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "SERVICE_UNAVAILABLE: dependency failure, maintenance, invalid configuration, or capacity exhaustion.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -660,39 +1010,63 @@
         }
       },
       "options": {
-        "operationId": "preflightConsumeSecret",
-        "summary": "Side-effect-free browser preflight",
         "tags": [
           "Secrets"
         ],
+        "summary": "Side-effect-free browser preflight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "204": {
-            "description": "No mutation. Allowed preflight permits POST and Content-Type without credentials.",
+            "description": "No mutation or rate-limit budget spent. Allowed preflight permits POST and Content-Type without credentials.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             }
           },
           "403": {
-            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
+            "description": "Origin or requested preflight method/headers are not allowed.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -705,13 +1079,24 @@
             }
           },
           "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "description": "Compressed requests are unsupported.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -724,20 +1109,24 @@
             }
           },
           "503": {
-            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "description": "Invalid configuration or maintenance.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -753,59 +1142,76 @@
       }
     },
     "/secrets/{id}/delete": {
-      "parameters": [
-        {
-          "name": "id",
-          "in": "path",
-          "required": true,
-          "schema": {
-            "type": "string"
-          },
-          "description": "32-character base64url reference. Malformed references also receive the uniform 404 when the request body is otherwise valid."
-        }
-      ],
       "post": {
         "operationId": "deleteSecret",
-        "summary": "Delete with a separate private token",
-        "description": "Click confirmation before calling. Deletion and consumption race atomically; deletion cannot undo an earlier retrieval. A retry can return 404 after an earlier successful deletion.",
         "tags": [
           "Secrets"
         ],
+        "summary": "Delete using a private token",
+        "description": "Require explicit confirmation. Send the private deletion token only in the JSON body. Deletion cannot recall a completed retrieval.",
+        "parameters": [
+          {
+            "schema": {
+              "$ref": "#/components/schemas/SecretId"
+            },
+            "required": true,
+            "name": "id",
+            "in": "path"
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DeleteRequest"
+              }
+            }
+          }
+        },
         "responses": {
           "204": {
-            "description": "Success",
+            "description": "This request deleted the available secret.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             }
           },
           "400": {
-            "description": "INVALID_REQUEST: malformed JSON, fields, encoding or body.",
+            "description": "INVALID_REQUEST: invalid JSON, fields, or encoding.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -818,110 +1224,24 @@
             }
           },
           "403": {
-            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
+            "description": "ORIGIN_NOT_ALLOWED on restricted deployments.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "413": {
-            "description": "PAYLOAD_TOO_LARGE: 48 KiB body limit or decoded payload limit exceeded.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "INTERNAL_ERROR: fixed message with no internal details.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "503": {
-            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -934,20 +1254,24 @@
             }
           },
           "404": {
-            "description": "DELETE_UNAVAILABLE: unavailable reference or incorrect well-formed token.",
+            "description": "DELETE_UNAVAILABLE: unavailable secret or incorrect well-formed token.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -960,26 +1284,32 @@
             }
           },
           "405": {
-            "description": "METHOD_NOT_ALLOWED for unsupported methods on this known route.",
+            "description": "METHOD_NOT_ALLOWED for unsupported methods.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               },
               "Allow": {
                 "schema": {
-                  "type": "string"
-                },
-                "description": "POST, OPTIONS"
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "POST, OPTIONS"
+                  ]
                 }
               }
             },
@@ -991,84 +1321,25 @@
               }
             }
           },
-          "429": {
-            "description": "RATE_LIMITED: shared reveal/deletion IP budget exceeded before parsing or database access.",
+          "413": {
+            "description": "PAYLOAD_TOO_LARGE: JSON exceeds 49152 bytes or ciphertext exceeds 32784 decoded bytes.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Currently 60 seconds. No secret mutation."
-              },
-              "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
-                "schema": {
-                  "type": "string",
-                  "const": "*"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          }
-        },
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/DeleteRequest"
-              }
-            }
-          }
-        }
-      },
-      "options": {
-        "operationId": "preflightDeleteSecret",
-        "summary": "Side-effect-free browser preflight",
-        "tags": [
-          "Secrets"
-        ],
-        "responses": {
-          "204": {
-            "description": "No mutation. Allowed preflight permits POST and Content-Type without credentials.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
-                }
-              }
-            }
-          },
-          "403": {
-            "description": "PREFLIGHT_NOT_ALLOWED for unsupported requested headers/methods; ORIGIN_NOT_ALLOWED on restricted deployments only.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -1081,13 +1352,90 @@
             }
           },
           "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "description": "UNSUPPORTED_MEDIA_TYPE: use uncompressed application/json.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "RATE_LIMITED: IP budget exhausted before database access. No secret mutation.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "description": "Currently 60 seconds.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "INTERNAL_ERROR: fixed message without internal details.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -1100,20 +1448,155 @@
             }
           },
           "503": {
-            "description": "SERVICE_UNAVAILABLE: maintenance, dependency failure, invalid configuration or creation capacity exhausted.",
+            "description": "SERVICE_UNAVAILABLE: dependency failure, maintenance, invalid configuration, or capacity exhaustion.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               },
               "Access-Control-Allow-Origin": {
-                "description": "Hosted public CORS. Invalid configuration may fail before CORS headers are added.",
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
                 "schema": {
                   "type": "string",
-                  "const": "*"
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      },
+      "options": {
+        "tags": [
+          "Secrets"
+        ],
+        "summary": "Side-effect-free browser preflight",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No mutation or rate-limit budget spent. Allowed preflight permits POST and Content-Type without credentials.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Origin or requested preflight method/headers are not allowed.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "415": {
+            "description": "Compressed requests are unsupported.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Invalid configuration or maintenance.",
+            "headers": {
+              "Cache-Control": {
+                "description": "All responses prohibit caching.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Access-Control-Allow-Origin": {
+                "description": "Hosted public CORS; earlier policy rejections may omit this header.",
+                "schema": {
+                  "type": "string",
+                  "enum": [
+                    "*"
+                  ]
                 }
               }
             },
@@ -1131,19 +1614,21 @@
     "/health": {
       "get": {
         "operationId": "health",
-        "summary": "Liveness",
         "tags": [
           "Status"
         ],
+        "summary": "Check liveness without querying D1",
         "responses": {
           "200": {
-            "description": "Service status",
+            "description": "Worker responds.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               }
             },
@@ -1156,32 +1641,15 @@
             }
           },
           "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "description": "Compressed requests are unsupported.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
-                }
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
-          },
-          "500": {
-            "description": "INTERNAL_ERROR: fixed message with no internal details.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               }
             },
@@ -1198,39 +1666,44 @@
     },
     "/ready": {
       "get": {
-        "operationId": "ready",
-        "summary": "Read-only service readiness",
+        "operationId": "readiness",
         "tags": [
           "Status"
         ],
+        "summary": "Check active service and D1 metadata",
+        "description": "Reads schema and aggregate metadata only; never consumes secrets. GET and HEAD share a 60-request/minute IP budget per Cloudflare location.",
         "responses": {
           "200": {
-            "description": "Service status",
+            "description": "Ready.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/Readiness"
+                  "$ref": "#/components/schemas/Ready"
                 }
               }
             }
           },
           "415": {
-            "description": "UNSUPPORTED_MEDIA_TYPE: use application/json and uncompressed bodies.",
+            "description": "Compressed requests are unsupported.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               }
             },
@@ -1242,14 +1715,22 @@
               }
             }
           },
-          "500": {
-            "description": "INTERNAL_ERROR: fixed message with no internal details.",
+          "429": {
+            "description": "RATE_LIMITED: IP budget exhausted before database access. No secret mutation.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
+                }
+              },
+              "Retry-After": {
+                "description": "Currently 60 seconds.",
+                "schema": {
+                  "type": "string"
                 }
               }
             },
@@ -1262,22 +1743,24 @@
             }
           },
           "503": {
-            "description": "Service unavailable: readiness status response, or SERVICE_UNAVAILABLE error when its limiter fails closed.",
+            "description": "Not ready, or limiter failed closed.",
             "headers": {
               "Cache-Control": {
                 "description": "All responses prohibit caching.",
                 "schema": {
                   "type": "string",
-                  "const": "no-store"
+                  "enum": [
+                    "no-store"
+                  ]
                 }
               }
             },
             "content": {
               "application/json": {
                 "schema": {
-                  "oneOf": [
+                  "anyOf": [
                     {
-                      "$ref": "#/components/schemas/Readiness"
+                      "$ref": "#/components/schemas/NotReady"
                     },
                     {
                       "$ref": "#/components/schemas/Error"
@@ -1286,202 +1769,10 @@
                 }
               }
             }
-          },
-          "429": {
-            "description": "RATE_LIMITED: readiness IP budget exceeded before database access. GET and HEAD share a budget.",
-            "headers": {
-              "Cache-Control": {
-                "description": "All responses prohibit caching.",
-                "schema": {
-                  "type": "string",
-                  "const": "no-store"
-                }
-              },
-              "Retry-After": {
-                "schema": {
-                  "type": "string"
-                },
-                "description": "Currently 60 seconds. No secret mutation."
-              }
-            },
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/Error"
-                }
-              }
-            }
           }
         }
       }
     }
   },
-  "components": {
-    "schemas": {
-      "Envelope": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "version",
-          "iv",
-          "ciphertext"
-        ],
-        "properties": {
-          "version": {
-            "type": "integer",
-            "const": 1
-          },
-          "iv": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "minLength": 16,
-            "maxLength": 16,
-            "description": "Canonical unpadded base64url of a 12-byte IV."
-          },
-          "ciphertext": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "minLength": 23,
-            "maxLength": 43712,
-            "description": "Canonical unpadded base64url; decoded length 17–32784 bytes, including a 16-byte GCM tag. Canonical encoding and decoded bounds are checked by the server."
-          }
-        }
-      },
-      "CreateRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "envelope"
-        ],
-        "properties": {
-          "envelope": {
-            "$ref": "#/components/schemas/Envelope"
-          },
-          "expiresIn": {
-            "type": "integer",
-            "enum": [
-              3600,
-              86400,
-              604800
-            ],
-            "default": 86400
-          }
-        }
-      },
-      "CreatedSecret": {
-        "type": "object",
-        "required": [
-          "id",
-          "deleteToken",
-          "expiresAt"
-        ],
-        "properties": {
-          "id": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "minLength": 32,
-            "maxLength": 32
-          },
-          "deleteToken": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "minLength": 43,
-            "maxLength": 43,
-            "description": "Returned once. Authorizes deletion only; store privately."
-          },
-          "expiresAt": {
-            "type": "string",
-            "format": "date-time"
-          }
-        }
-      },
-      "ConsumedSecret": {
-        "type": "object",
-        "required": [
-          "envelope"
-        ],
-        "properties": {
-          "envelope": {
-            "$ref": "#/components/schemas/Envelope"
-          }
-        }
-      },
-      "DeleteRequest": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": [
-          "deleteToken"
-        ],
-        "properties": {
-          "deleteToken": {
-            "type": "string",
-            "pattern": "^[A-Za-z0-9_-]+$",
-            "minLength": 43,
-            "maxLength": 43,
-            "description": "Canonical unpadded base64url of 32 bytes."
-          }
-        }
-      },
-      "Error": {
-        "type": "object",
-        "required": [
-          "error"
-        ],
-        "properties": {
-          "error": {
-            "type": "object",
-            "required": [
-              "code",
-              "message"
-            ],
-            "properties": {
-              "code": {
-                "type": "string"
-              },
-              "message": {
-                "type": "string"
-              }
-            }
-          }
-        }
-      },
-      "Health": {
-        "type": "object",
-        "required": [
-          "status",
-          "service"
-        ],
-        "properties": {
-          "status": {
-            "const": "ok",
-            "type": "string"
-          },
-          "service": {
-            "const": "xasha",
-            "type": "string"
-          }
-        }
-      },
-      "Readiness": {
-        "type": "object",
-        "required": [
-          "status",
-          "service"
-        ],
-        "properties": {
-          "status": {
-            "type": "string",
-            "enum": [
-              "ready",
-              "unavailable"
-            ]
-          },
-          "service": {
-            "const": "xasha",
-            "type": "string"
-          }
-        }
-      }
-    }
-  }
+  "webhooks": {}
 }

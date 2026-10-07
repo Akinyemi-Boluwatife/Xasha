@@ -11,4 +11,3 @@ export const deleteUnavailable = {
       "This secret could not be deleted. It may already be unavailable, or the delete link may be invalid.",
   },
 };
-export const validId = (id: string) => /^[A-Za-z0-9_-]{32}$/.test(id);

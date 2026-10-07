@@ -151,9 +151,18 @@ Both tools use the hosted API and create real, disposable test secrets. Use dumm
 ## Further details
 
 - [API contract](api-contract.md) — request formats, limits, and error codes.
-- [OpenAPI specification](openapi.json) — machine-readable API definition.
+- [Live OpenAPI specification](https://api.xasha.site/openapi.json) — generated from the route schemas, with public browser access for documentation tools.
+- [OpenAPI snapshot in GitHub](openapi.json) — the same generated API definition, committed for tools and offline use.
 - [Self-hosting](self-hosting.md) — run your own backend on Cloudflare.
 - [Security safeguards](security.md) and [recovery policy](recovery.md).
 - [Web Crypto encryption](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt).
 
 Describe browser integrations as **“encrypted in your browser.”** Anyone with the complete share link can reveal the text, and recipients can copy or save it. The code delivered to the browser remains part of the trust model. Hosted access is best effort, with no availability guarantee.
+
+## Updating the API documentation
+
+Requests are validated with `@hono/zod-openapi`; route definitions and their Zod schemas generate the OpenAPI specification. Response schemas also type-check handlers and describe their output; they are not a runtime response-validation layer. Keep changes in the grouped route files and shared schemas rather than editing `docs/openapi.json` manually.
+
+After changing an API shape, run `npm run openapi:generate` and commit the updated snapshot. Both automatic build checks verify that it matches the registered routes. `npm run openapi:check` checks an existing built bundle; run `npm run build` first when checking manually.
+
+The specification endpoint performs no database work, consumes no secrets, and works during maintenance. It provides JSON only; Swagger UI and the planned playground are not included. This follows [Hono's Zod OpenAPI integration](https://hono.dev/examples/zod-openapi).

@@ -14,9 +14,11 @@
     "typecheck": "tsc --noEmit",
     "audit": "npm audit --audit-level=high",
     "test": "npm run build && node --test tests/*.test.mjs",
-    "ci:check": "npm run audit && npm run typecheck && npm test && npm run build:monitor && cf deploy --prebuilt --mode monitor --dry-run && npm run build:production && cf deploy --prebuilt --mode production --dry-run",
+    "openapi:generate": "npm run build && node scripts/openapi.mjs",
+    "openapi:check": "node scripts/openapi.mjs --check",
+    "ci:check": "npm run audit && npm run typecheck && npm test && npm run openapi:check && npm run build:monitor && cf deploy --prebuilt --mode monitor --dry-run && npm run build:production && cf deploy --prebuilt --mode production --dry-run",
     "ci:deploy": "npm run db:migrate:production && cf deploy --prebuilt --mode production && node tests/live-smoke.mjs https://api.xasha.site",
-    "ci:monitor:check": "npm run audit && npm run typecheck && npm test && npm run build:monitor && cf deploy --prebuilt --mode monitor --dry-run",
+    "ci:monitor:check": "npm run audit && npm run typecheck && npm test && npm run openapi:check && npm run build:monitor && cf deploy --prebuilt --mode monitor --dry-run",
     "ci:monitor:deploy": "npm run db:migrate:monitor && cf deploy --prebuilt --mode monitor",
     "db:migrate": "npm run db:migrate:dev",
     "db:migrate:dev": "node scripts/migrate.mjs development",
@@ -28,7 +30,9 @@
   "license": "ISC",
   "private": true,
   "dependencies": {
-    "hono": "^4.13.13"
+    "@hono/zod-openapi": "^1.6.3",
+    "hono": "^4.13.13",
+    "zod": "^4.6.5"
   },
   "devDependencies": {
     "@cloudflare/vite-plugin": "^2.0.0-beta.sha-52b0dc0e9",

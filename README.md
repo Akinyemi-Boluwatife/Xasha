@@ -31,6 +31,6 @@ Opening a share link alone should not reveal or consume the secret. Anyone with 
 
 ## For developers
 
-Start with the [step-by-step integration guide](docs/developers.md). The [API reference](docs/api-contract.md) and [OpenAPI specification](docs/openapi.json) contain integration details.
+Start with the [step-by-step integration guide](docs/developers.md). The [API reference](docs/api-contract.md) and [live OpenAPI specification](https://api.xasha.site/openapi.json) contain integration details. A [generated specification snapshot](docs/openapi.json) is also available here.
 
 [ISC license](LICENSE) · [Attribution](NOTICE)

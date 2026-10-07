@@ -24,7 +24,7 @@ These pages are proposed and are not currently hosted. Documentation and the pla
 
 ## Documentation
 
-Keep [the integration guide](developers.md), [API contract](api-contract.md), and [OpenAPI specification](openapi.json) as the source documents in this backend repository. Render or adapt those documents into the frontend site's `/docs` section, with links back to GitHub. Import a known revision at website build time and update/rebuild the website when API documentation changes. Avoid manually maintaining two separate endpoint definitions.
+Keep [the integration guide](developers.md) and [API contract](api-contract.md) in this backend repository. Route definitions and Zod schemas generate the [OpenAPI snapshot](openapi.json) and the public specification at `https://api.xasha.site/openapi.json`. Render or adapt the guides into the frontend site's `/docs` section, with links back to GitHub. Import a known revision at website build time and update/rebuild the website when API documentation changes. Documentation tools can also load the live specification using its public GET CORS headers. Avoid manually maintaining two separate endpoint definitions.
 
 GitHub retains the concise overview and a direct integration-guide link. Once the website is live, change its README label from planned to available and add direct Docs and Playground links.
 
