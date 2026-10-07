@@ -1,0 +1,2 @@
+# Keep tests tracked while excluding them from GitHub language statistics.
+tests/** linguist-detectable=false
