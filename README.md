@@ -2,9 +2,29 @@
 
 Share private text that can be retrieved once, then becomes unavailable. No accounts or login required.
 
-Xasha provides the backend for secret-sharing apps and developer integrations. The public API is available at [api.xasha.site](https://api.xasha.site).
+Try it at [xasha.site](https://xasha.site). API documentation and a place to try API requests will be available on the website.
 
-**Planned website:** [xasha.site](https://xasha.site) — a simple sharing interface, documentation, and API playground. It has not been launched yet.
+## Quick start
+
+1. Open [xasha.site](https://xasha.site) and enter the text you want to share.
+2. Create a secret and send its share link to the recipient. Keep the private delete link if you want to delete it before retrieval.
+3. The recipient opens the link and chooses **Reveal**. After retrieval, the secret is unavailable.
+
+## Run locally
+
+This repository contains the Hono backend. Use Node.js **24.18.0**, as specified in `.node-version`.
+
+```sh
+git clone https://github.com/Akinyemi-Boluwatife/Xasha.git
+cd Xasha
+npm ci
+npm run db:migrate:dev -- --local
+npm run dev
+```
+
+Use the local URL printed by the dev server. Check `/health` and `/ready` to confirm the backend is running. Local development uses simulated D1 storage.
+
+To verify changes, run `npm run typecheck` and `npm test`. For deployment to your own Cloudflare account, follow the [self-hosting guide](docs/self-hosting.md).
 
 ## How it works
 
@@ -27,10 +47,12 @@ Opening a share link alone should not reveal or consume the secret. Anyone with 
 - One retrieval per secret.
 - Expiry options of **1 hour, 24 hours, or 7 days**, with 24 hours as the default.
 - A separate private deletion option.
-- A public API for browser apps and other clients.
+- API integration for browser apps and other clients.
 
 ## For developers
 
-Start with the [step-by-step integration guide](docs/developers.md). The [API reference](docs/api-contract.md) and [live OpenAPI specification](https://api.xasha.site/openapi.json) contain integration details. A [generated specification snapshot](docs/openapi.json) is also available here.
+Visit [xasha.site](https://xasha.site) to try Xasha. API documentation and interactive API examples will be available there.
+
+For integration details in this repository, see the [step-by-step integration guide](docs/developers.md), [API reference](docs/api-contract.md), and [OpenAPI specification](docs/openapi.json).
 
 [ISC license](LICENSE) · [Attribution](NOTICE)
