@@ -2,6 +2,8 @@
 
 Use **`https://api.xasha.site`** from your own app. You do not need an account, API key, SDK, or your own backend deployment.
 
+The planned website at [xasha.site](https://xasha.site) will include readable documentation and an API playground using this same public API. Until it launches, this guide and the terminal examples below are available on GitHub. See the [website plan](frontend-plan.md) for the proposed layout.
+
 Your app encrypts and decrypts the text, builds the share links, and asks the user to confirm reveal or deletion. Xasha stores the encrypted text, enforces expiry, and allows one retrieval. This repository does not serve browser share-link pages.
 
 ## 1. Add the encryption helper

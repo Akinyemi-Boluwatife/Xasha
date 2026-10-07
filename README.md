@@ -2,7 +2,9 @@
 
 Share private text that can be retrieved once, then becomes unavailable. No accounts or login required.
 
-Xasha provides the backend for secret-sharing apps and developer integrations. The API is available at [api.xasha.site](https://api.xasha.site); a browser interface is not included yet.
+Xasha provides the backend for secret-sharing apps and developer integrations. The public API is available at [api.xasha.site](https://api.xasha.site).
+
+**Planned website:** [xasha.site](https://xasha.site) — a simple sharing interface, documentation, and API playground. It has not been launched yet.
 
 ## How it works
 
