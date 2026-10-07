@@ -1,103 +1,157 @@
 # Integrating with Xasha
 
-Xasha is an HTTP API with no accounts or API keys. Use any HTTP client; Hono RPC is optional. Hosted base URL: `https://api.xasha.site`.
+Use **`https://api.xasha.site`** from your own app. You do not need an account, API key, SDK, or your own backend deployment.
 
-Use [OpenAPI](openapi.json) for schemas and [the API contract](api-contract.md) for protocol details. Share-link and delete-confirmation pages belong to a separate client, which this backend does not serve.
+Your app encrypts and decrypts the text, builds the share links, and asks the user to confirm reveal or deletion. Xasha stores the encrypted text, enforces expiry, and allows one retrieval. This repository does not serve browser share-link pages.
 
-## Encrypt and create
+## 1. Add the encryption helper
 
-For a hands-on sender/recipient test without a frontend, run `node examples/interactive.mjs` from the project root with Node.js 22.18+. Choose **1** to type a secret and obtain a share code plus a separate private delete code. In a second terminal, run the same command, choose **2**, paste the share code, and confirm Reveal. Try again to see that it is unavailable. Choose **3** with the private delete code to delete a different unread secret. These codes are for this terminal tool, not browser links. The tool uses the live hosted API by default, keeps encryption keys local, and writes no files. Use dummy text because terminal output displays the text and codes. An optional API origin argument supports self-hosting, for example `node examples/interactive.mjs http://localhost:8787`.
+Copy [encryption.mjs](../examples/encryption.mjs) into your app. It works in secure browser contexts (HTTPS or localhost) and Node.js 22.18+. No additional npm package is needed for the hosted API.
 
-[The encryption example](../examples/encryption.mjs) exports `encryptText()` and `decryptText()`. It works with Web Crypto in Node.js 22.18+ and compatible secure browser contexts. It has no network, logging or storage side effects. It is an interoperability example, not a published SDK.
-
-Envelope version 1 uses AES-256-GCM, a fresh random 32-byte key and 12-byte IV per secret, a 128-bit authentication tag appended to ciphertext, no additional authenticated data, and canonical unpadded base64url. Enforce 1–32768 UTF-8 **bytes**, not characters. Never send plaintext or the key to the API.
+The snippets below belong in your app's integration module, beside that helper:
 
 ```js
-import { encryptText, decryptText } from './examples/encryption.mjs'
+import { encryptText, decryptText } from './encryption.mjs'
 
 const api = 'https://api.xasha.site'
-const { envelope, keyFragment } = await encryptText('Example secret')
-const response = await fetch(`${api}/secrets`, {
-  method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ envelope, expiresIn: 86400 }),
-  cache: 'no-store', credentials: 'omit', redirect: 'error', signal: AbortSignal.timeout(15000),
-})
-if (!response.ok) throw new Error(`Creation failed (${response.status}).`)
-const { id, deleteToken, expiresAt } = await response.json()
-// Keep keyFragment and deleteToken private. Never log them.
+const options = {
+  cache: 'no-store',
+  credentials: 'omit',
+  redirect: 'error',
+}
 ```
 
-Expiry seconds: `3600`, `86400` (default when omitted), or `604800`. Maximum uncompressed JSON request: 49152 bytes. Compression and unknown fields are rejected. Creation is not idempotent: retrying an uncertain response can create another secret. Clear the sender's form only after successful creation and preserve the returned links.
+These examples target browsers and Node.js. Cloudflare Workers clients should use `redirect: 'manual'` and reject redirect responses; see [Workers request guidance](https://developers.cloudflare.com/workers/runtime-apis/request/).
 
-## Construct client links
+## 2. Encrypt and create a secret
 
-Your client could use `https://your-client.example/s/{id}#{keyFragment}` and a separate private `https://your-client.example/delete/{id}#{deleteToken}`. These are proposed client routes, not working hosted Xasha pages. Fragments are not sent in HTTP requests, but scripts can read them. Keep complete links out of analytics and error reporting.
-
-Describe the experience as **encrypted in your browser**. The service delivering browser code remains part of the trust model; do not claim it can never access secrets. Node integrations encrypt in the calling process.
-
-## Reveal on an explicit action
-
-Only call consume after clicking Reveal. Page loading and link previews must not call it. Send no body:
+Call this when the sender chooses **Create secret link**:
 
 ```js
-// Run only when the recipient chooses Reveal.
-const revealed = await fetch(`${api}/secrets/${id}/consume`, {
-  method: 'POST', cache: 'no-store', credentials: 'omit', redirect: 'error',
-  signal: AbortSignal.timeout(15000),
-})
-if (!revealed.ok) throw new Error(`Reveal failed (${revealed.status}).`)
-const result = await revealed.json()
-const text = await decryptText(result.envelope, keyFragment)
-// Render safely as text content; keep revealed text only in memory.
+async function createSecret(text, expiresIn = 86400) {
+  const { envelope, keyFragment } = await encryptText(text)
+  const response = await fetch(`${api}/secrets`, {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ envelope, expiresIn }),
+    signal: AbortSignal.timeout(15000),
+  })
+  if (response.status !== 201) throw new Error(`Creation failed (${response.status}).`)
+  const { id, deleteToken, expiresAt } = await response.json()
+  return { id, keyFragment, deleteToken, expiresAt }
+}
 ```
 
-**Disable automatic consume retries in HTTP clients, SDKs, proxies and service workers.** Timeouts, server errors, aborted requests and decryption failures may occur after irreversible consumption. One-time retrieval does not prevent copying, saving or screenshots.
+Only the encrypted `envelope` and expiry go to Xasha. The returned object combines the server's ID and deletion token with the encryption key your app generated locally.
 
-Used, expired, deleted, missing and malformed references all return `404 SECRET_UNAVAILABLE`: “This secret is no longer available.” Missing keys and decrypt failures are separate client errors; the server cannot verify the key.
+- Expiry choices: `3600` (1 hour), `86400` (24 hours, default), or `604800` (7 days).
+- Text limit: **32 KiB of UTF-8 text**. The helper checks bytes, not characters.
+- Clear the sender's input after successful creation. Keep the returned links available for copying.
+- Do not automatically retry creation after an uncertain response; it could create another secret.
 
-## Delete with confirmation
+## 3. Build the share and private delete links
 
-Opening a delete link must show confirmation. Only clicking Delete sends:
+Use **your app's address**, not the API address:
 
 ```js
-const deleted = await fetch(`${api}/secrets/${id}/delete`, {
-  method: 'POST', headers: { 'Content-Type': 'application/json' },
-  body: JSON.stringify({ deleteToken }), cache: 'no-store', credentials: 'omit', redirect: 'error',
-  signal: AbortSignal.timeout(15000),
-})
-// 204: this request deleted the secret.
-// 404: unavailable secret or incorrect well-formed token.
+const secret = await createSecret('Example private note')
+const clientOrigin = 'https://your-app.example' // Replace with your app's origin.
+
+const shareLink = new URL(`/s/${secret.id}`, clientOrigin)
+shareLink.hash = secret.keyFragment
+
+const deleteLink = new URL(`/delete/${secret.id}`, clientOrigin)
+deleteLink.hash = secret.deleteToken
+
+// Show shareLink.href to the sender, with a copy button.
+// Show deleteLink.href separately as a private deletion option.
+// Do not log these values or send them to analytics.
 ```
 
-Never put the token in an API URL. It authorizes deletion only. Delete and consume race atomically; whichever succeeds first wins. Deletion cannot recall released content. A retry can return 404 after an earlier successful deletion. There is no recovery of a lost delete link.
+Your app must handle `/s/:id` and `/delete/:id`. These are suggested client routes, not pages hosted by Xasha. The `#fragment` stays in the client and is not sent in HTTP requests. The sender shares the share link and keeps the private delete link.
 
-## Browser access and hosted limits
+## 4. Reveal and decrypt once
 
-The hosted secret API supports any browser origin using `Access-Control-Allow-Origin: *`, including local development clients. Use `credentials: 'omit'`; the API has no cookies or credentialed CORS. Node.js and command-line clients are supported too. Health/readiness are operational endpoints without cross-origin browser headers.
+On your share page, read the ID from the path and the key from the fragment (`url.hash.slice(1)`). Validate that both are present before enabling Reveal. **Do not request the secret when the page loads.**
 
-Self-hosted operators can choose `["*"]` for public access or exact origins in `config/environments.ts`; development defaults to same-origin only. Allowed preflights permit POST and Content-Type without credentials and never mutate secrets. Unsupported requested headers or methods receive 403. CORS controls browser access, not authentication or abuse.
+Call this only after the recipient chooses **Reveal secret**:
 
-Creation is limited to approximately 10 attempts per IP per minute **per Cloudflare location**. Reveal and deletion share a separate limit of 120 attempts per IP per minute, across all secret IDs. Readiness has its own limit of 60 requests per IP per minute, shared by GET and HEAD. Invalid attempts count; shared networks share buckets. A 429 includes Retry-After: 60 and does not consume or delete a secret. No automatic consume retries are permitted. Creation throttling does not exhaust the reveal/deletion budget, and browser preflights do not spend these budgets. Limits are approximate and do not provide a global traffic or billing cap. See [security safeguards](security.md).
+```js
+async function revealSecret(id, keyFragment) {
+  const response = await fetch(`${api}/secrets/${encodeURIComponent(id)}/consume`, {
+    ...options,
+    method: 'POST', // No request body; never send the encryption key.
+    signal: AbortSignal.timeout(15000),
+  })
+  if (response.status === 404) throw new Error('This secret is no longer available.')
+  if (response.status !== 200) throw new Error(`Retrieval failed (${response.status}).`)
+  const { envelope } = await response.json()
+  return decryptText(envelope, keyFragment)
+}
+```
 
-Shared storage is capped at 10000 records and 50 MiB logical payload, including expired rows awaiting cleanup. Capacity exhaustion returns 503.
+Xasha removes the secret as it retrieves the encrypted text. Display the returned text safely as text content, keep it in memory, and provide a copy button. Do not save it in localStorage or other browser storage.
 
-`GET /health` and `GET /ready` are read-only probes. Hosted access is best effort with no availability guarantee; this is not durable storage.
+Disable Reveal while the request is running. **Never automatically retry consumption**, including on timeouts or server errors: the secret might already have been consumed. A lost response or failed decryption cannot restore it. A wrong key can still consume the secret, so keep the share link intact.
 
-## Self-host
+## 5. Delete an unread secret
 
-1. Clone and run `npm ci` with the Node version in `.node-version`.
-2. Authenticate `cf` to **your own** Cloudflare account (`cf auth --help`).
-3. Create separate development and production D1 databases (`cf d1 --help`). Replace accountId in `cloudflare.config.ts`, and database IDs, names, Worker names and dedicated rate-limit namespaces in `config/environments.ts`. Checked-in identifiers belong to the original operator and grant no access.
-4. For monitoring, also replace resources in `config/monitor.ts` and point readinessUrl to your API. Alerts are disabled by default.
-5. Choose public or restricted browser origins, then run `npm run typecheck` and `npm test`.
-6. Apply migrations before deployment: `npm run db:migrate:dev`, then `npm run deploy:dev`. Use explicit production commands after replacing production resources.
-7. Connect your repository to Workers Builds: API build command `npm run ci:check`, deploy command `npm run ci:deploy`; monitor build command `npm run ci:monitor:check`, deploy command `npm run ci:monitor:deploy`. Both check commands block known high/critical dependency audit findings before testing. Connections and credentials are not included in a clone. Replace the live-smoke URL in package.json for your API.
+On your private delete page, read the ID from the path and the deletion token from the fragment. Opening the page does nothing; ask the sender to confirm **Delete secret** before calling:
 
-Local migrations: `npm run db:migrate:dev -- --local`. `npm run dev` prints the local URL and uses simulated D1. Isolated tests require no production credentials. Store credentials in Cloudflare secret bindings, never Git. Follow [fresh-database recovery](recovery.md); serving restored historical rows can release a consumed secret again.
+```js
+async function deleteSecret(id, deleteToken) {
+  const response = await fetch(`${api}/secrets/${encodeURIComponent(id)}/delete`, {
+    ...options,
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ deleteToken }),
+    signal: AbortSignal.timeout(15000),
+  })
+  if (response.status === 404) throw new Error('Could not delete: unavailable secret or invalid delete code.')
+  if (response.status !== 204) throw new Error(`Deletion failed (${response.status}).`)
+}
+```
 
-## References
+The deletion token goes in the request body, never the API URL. It cannot decrypt the secret. Deletion cannot undo a completed retrieval, and lost links cannot be recovered.
 
-- [Web Crypto encryption](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt)
-- [AES-GCM parameters](https://developer.mozilla.org/en-US/docs/Web/API/AesGcmParams)
-- [OpenAPI 3.1.2](https://spec.openapis.org/oas/v3.1.2.html)
-- [Cloudflare secrets](https://developers.cloudflare.com/workers/configuration/secrets/)
+## Handle failures
+
+| Result | What your app should do |
+| --- | --- |
+| `400`, `413`, or `415` | Check the payload, text size, and JSON content type. |
+| `404` on reveal | Show “This secret is no longer available.” |
+| `404` on delete | Explain that deletion was not possible; the secret may be unavailable or the token invalid. |
+| `429` | Show “Too many requests. Try again later.” Respect `Retry-After` (currently 60 seconds). |
+| `500`, `503`, or a network timeout | Show a temporary failure. Do not automatically retry a reveal request. |
+| Decryption failure | Explain that the key or encrypted data could not be verified; retrieval has already consumed the secret. |
+
+The hosted API accepts any browser origin without cookies or credentialed requests. Creation allows approximately 10 attempts per IP per minute; reveal and deletion share 120. Limits apply per Cloudflare location, and shared networks share budgets. See the [API contract](api-contract.md) for every response and limit.
+
+## Try it without building an app
+
+Clone the repository and, with Node.js 22.18+, run:
+
+```sh
+node examples/interactive.mjs
+```
+
+In terminal 1, choose **1**, type dummy text, and copy the share code. In terminal 2, run the same command, choose **2**, paste the code, and confirm Reveal. Try revealing again to see that it is unavailable. To test deletion, create another secret and choose **3** with its private delete code. These are terminal codes, not browser links.
+
+For an automated live check:
+
+```sh
+node examples/test-api.mjs
+```
+
+Both tools use the hosted API and create real, disposable test secrets. Use dummy text; the interactive tool displays codes and revealed text in your terminal.
+
+## Further details
+
+- [API contract](api-contract.md) — request formats, limits, and error codes.
+- [OpenAPI specification](openapi.json) — machine-readable API definition.
+- [Self-hosting](self-hosting.md) — run your own backend on Cloudflare.
+- [Security safeguards](security.md) and [recovery policy](recovery.md).
+- [Web Crypto encryption](https://developer.mozilla.org/en-US/docs/Web/API/SubtleCrypto/encrypt).
+
+Describe browser integrations as **“encrypted in your browser.”** Anyone with the complete share link can reveal the text, and recipients can copy or save it. The code delivered to the browser remains part of the trust model. Hosted access is best effort, with no availability guarantee.

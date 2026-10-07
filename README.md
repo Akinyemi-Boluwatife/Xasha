@@ -29,6 +29,6 @@ Opening a share link alone should not reveal or consume the secret. Anyone with 
 
 ## For developers
 
-Start with the [developer guide](docs/developers.md). The [API reference](docs/api-contract.md) and [OpenAPI specification](docs/openapi.json) contain integration details.
+Start with the [step-by-step integration guide](docs/developers.md). The [API reference](docs/api-contract.md) and [OpenAPI specification](docs/openapi.json) contain integration details.
 
 [ISC license](LICENSE) · [Attribution](NOTICE)
