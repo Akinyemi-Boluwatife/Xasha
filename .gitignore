@@ -6,3 +6,7 @@ dist/
 .env.*
 docs/public-release-review.md
 docs/domain-setup.md
+
+# Optional local CLI examples
+/examples/interactive.mjs
+/examples/test-api.mjs

@@ -130,24 +130,6 @@ The deletion token goes in the request body, never the API URL. It cannot decryp
 
 The hosted API accepts any browser origin without cookies or credentialed requests. Creation allows approximately 10 attempts per IP per minute; reveal and deletion share 120. Limits apply per Cloudflare location, and shared networks share budgets. See the [API contract](api-contract.md) for every response and limit.
 
-## Try it without building an app
-
-Clone the repository and, with Node.js 22.18+, run:
-
-```sh
-node examples/interactive.mjs
-```
-
-In terminal 1, choose **1**, type dummy text, and copy the share code. In terminal 2, run the same command, choose **2**, paste the code, and confirm Reveal. Try revealing again to see that it is unavailable. To test deletion, create another secret and choose **3** with its private delete code. These are terminal codes, not browser links.
-
-For an automated live check:
-
-```sh
-node examples/test-api.mjs
-```
-
-Both tools use the hosted API and create real, disposable test secrets. Use dummy text; the interactive tool displays codes and revealed text in your terminal.
-
 ## Further details
 
 - [API contract](api-contract.md) — request formats, limits, and error codes.
